@@ -28,3 +28,6 @@ npm-debug.log*
 
 # Coverage
 coverage/
+
+# n8n workflow files (may contain sensitive data)
+n8n_jsons/

@@ -4,9 +4,9 @@
   "description": "AI-powered customer service bot for LINE using OpenAI GPT",
   "main": "dist/handler.js",
   "scripts": {
+    "dev": "esbuild src/local.ts --bundle --platform=node --target=node18 --outfile=dist/local.js && node --env-file=.env dist/local.js",
     "build": "esbuild src/handler.ts --bundle --platform=node --target=node18 --outdir=dist --external:@aws-sdk/*",
     "deploy": "npm run build && serverless deploy",
-    "offline": "npm run build && serverless offline",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix"
@@ -15,6 +15,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@langchain/anthropic": "^0.3.0",
+    "@langchain/core": "^0.3.0",
+    "@langchain/langgraph": "^0.2.0",
+    "@langchain/openai": "^0.3.0",
     "@line/bot-sdk": "^9.4.0",
     "openai": "^4.76.0"
   },
