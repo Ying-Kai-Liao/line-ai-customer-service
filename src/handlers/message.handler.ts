@@ -6,12 +6,25 @@ import {
   replyMessage,
 } from '../services/line.service';
 import { getChatHistory, addMessageToHistory } from '../services/dynamo.service';
-import { generateResponse, createChatMessage } from '../services/openai.service';
+import { processMessage } from '../agents/graph';
+import type { ChatMessage } from '../types';
 
 const FALLBACK_MESSAGE =
   'Sorry, I encountered an issue processing your message. Please try again.';
 const NON_TEXT_MESSAGE =
   'I can only respond to text messages at the moment. Please send me a text message.';
+
+// Helper to create a chat message
+function createChatMessage(
+  role: 'user' | 'assistant',
+  content: string
+): ChatMessage {
+  return {
+    role,
+    content,
+    timestamp: Date.now(),
+  };
+}
 
 /**
  * Handles a single LINE webhook event
@@ -47,8 +60,18 @@ export async function handleEvent(event: WebhookEvent): Promise<void> {
     // Get chat history for context
     const chatHistory = await getChatHistory(userId);
 
-    // Generate AI response
-    const aiResponse = await generateResponse(textContent, chatHistory);
+    // Convert chat history to format expected by LangGraph
+    const conversationHistory = chatHistory.map((msg) => ({
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content,
+    }));
+
+    // Process message through LangGraph multi-agent system
+    const aiResponse = await processMessage(
+      textContent,
+      userId,
+      conversationHistory
+    );
 
     // Save user message to history
     const userMessage = createChatMessage('user', textContent);

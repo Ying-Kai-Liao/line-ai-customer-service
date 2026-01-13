@@ -45,8 +45,7 @@ export async function generateResponse(
     const completion = await openai.chat.completions.create({
       model: config.openai.model,
       messages,
-      max_tokens: 500,
-      temperature: 0.7,
+      max_completion_tokens: 500,
     });
 
     const response = completion.choices[0]?.message?.content;

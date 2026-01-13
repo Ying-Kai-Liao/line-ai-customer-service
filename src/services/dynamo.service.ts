@@ -7,6 +7,10 @@ import {
 import { config } from '../config';
 import type { ChatHistory, ChatMessage } from '../types';
 
+// In-memory store for local development
+const localStore = new Map<string, ChatMessage[]>();
+const isLocalMode = process.env.USE_LOCAL_STORAGE === 'true';
+
 const client = new DynamoDBClient({ region: config.dynamodb.region });
 const docClient = DynamoDBDocumentClient.from(client);
 
@@ -14,6 +18,10 @@ const docClient = DynamoDBDocumentClient.from(client);
 const TTL_SECONDS = 24 * 60 * 60;
 
 export async function getChatHistory(userId: string): Promise<ChatMessage[]> {
+  if (isLocalMode) {
+    return localStore.get(userId) || [];
+  }
+
   try {
     const result = await docClient.send(
       new GetCommand({
@@ -38,11 +46,16 @@ export async function saveChatHistory(
   userId: string,
   messages: ChatMessage[]
 ): Promise<void> {
-  const now = Date.now();
-  const ttl = Math.floor(now / 1000) + TTL_SECONDS;
-
   // Keep only the most recent messages
   const trimmedMessages = messages.slice(-config.maxHistoryMessages);
+
+  if (isLocalMode) {
+    localStore.set(userId, trimmedMessages);
+    return;
+  }
+
+  const now = Date.now();
+  const ttl = Math.floor(now / 1000) + TTL_SECONDS;
 
   const history: ChatHistory = {
     userId,
