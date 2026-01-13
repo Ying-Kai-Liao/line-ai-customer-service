@@ -1,0 +1,67 @@
+service: line-ai-customer-service
+
+frameworkVersion: '4'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ${opt:region, 'ap-northeast-1'}
+  stage: ${opt:stage, 'dev'}
+  memorySize: 256
+  timeout: 30
+  environment:
+    LINE_CHANNEL_ACCESS_TOKEN: ${env:LINE_CHANNEL_ACCESS_TOKEN}
+    LINE_CHANNEL_SECRET: ${env:LINE_CHANNEL_SECRET}
+    OPENAI_API_KEY: ${env:OPENAI_API_KEY}
+    OPENAI_MODEL: ${env:OPENAI_MODEL, 'gpt-4'}
+    DYNAMODB_TABLE_NAME: ${self:service}-${self:provider.stage}
+    MAX_HISTORY_MESSAGES: ${env:MAX_HISTORY_MESSAGES, '10'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - !GetAtt ChatHistoryTable.Arn
+
+functions:
+  webhook:
+    handler: dist/handler.webhook
+    events:
+      - http:
+          path: webhook
+          method: post
+          cors: true
+      - http:
+          path: webhook
+          method: get
+          cors: true
+
+resources:
+  Resources:
+    ChatHistoryTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
+
+plugins:
+  - serverless-offline
+
+custom:
+  serverless-offline:
+    httpPort: 3000
+    lambdaPort: 3002
