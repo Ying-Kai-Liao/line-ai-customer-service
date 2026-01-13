@@ -7,7 +7,9 @@
     "build": "esbuild src/handler.ts --bundle --platform=node --target=node18 --outdir=dist --external:@aws-sdk/*",
     "deploy": "npm run build && serverless deploy",
     "offline": "npm run build && serverless offline",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix"
   },
   "keywords": ["line", "chatbot", "openai", "customer-service", "serverless"],
   "author": "",
@@ -21,7 +23,10 @@
     "@aws-sdk/lib-dynamodb": "^3.700.0",
     "@types/aws-lambda": "^8.10.145",
     "@types/node": "^20.17.0",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
     "esbuild": "^0.24.0",
+    "eslint": "^8.57.0",
     "serverless": "^4.4.0",
     "serverless-offline": "^14.4.0",
     "typescript": "^5.7.0"
