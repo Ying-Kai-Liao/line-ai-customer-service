@@ -1,5 +1,6 @@
 import { Annotation } from '@langchain/langgraph';
 import { BaseMessage } from '@langchain/core/messages';
+import type { FlexMessage } from '@line/bot-sdk';
 
 // Agent types for routing
 export type AgentType = 'main' | 'appointment' | 'search_expert' | 'notification';
@@ -12,6 +13,9 @@ export const GraphState = Annotation.Root({
   // LINE user ID for context
   userId: Annotation<string>,
 
+  // Expert ID if this is a postback action
+  expertId: Annotation<number>,
+
   // Conversation history as LangChain messages
   messages: Annotation<BaseMessage[]>({
     reducer: (current, update) => [...current, ...update],
@@ -23,6 +27,9 @@ export const GraphState = Annotation.Root({
 
   // The final response to send back to the user
   response: Annotation<string>,
+
+  // Optional flex message to send instead of text
+  flexMessage: Annotation<FlexMessage>,
 
   // Whether we detected a crisis/urgent situation
   isCrisis: Annotation<boolean>,

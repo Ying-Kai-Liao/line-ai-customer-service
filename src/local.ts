@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import http from 'http';
 import { validateConfig } from './config';
 import {
@@ -38,18 +39,22 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Parse and handle events
-  const events = parseWebhookEvents(body);
-  if (events.length > 0) {
-    try {
-      await handleEvents(events);
-    } catch (error) {
-      console.error('Error handling events:', error);
-    }
-  }
-
+  // Respond immediately to prevent LINE retries
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ message: 'OK' }));
+
+  // Process events asynchronously (after responding)
+  const events = parseWebhookEvents(body);
+  if (events.length > 0) {
+    // Use setImmediate to process after response is sent
+    setImmediate(async () => {
+      try {
+        await handleEvents(events);
+      } catch (error) {
+        console.error('Error handling events:', error);
+      }
+    });
+  }
 });
 
 // Validate config on startup

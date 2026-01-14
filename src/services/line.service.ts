@@ -2,9 +2,12 @@ import {
   Client,
   WebhookEvent,
   TextMessage,
+  FlexMessage,
+  Message,
   validateSignature,
 } from '@line/bot-sdk';
 import { config } from '../config';
+import { AI_SENDER, DEFAULT_QUICK_REPLY } from '../tools/line-flex';
 
 // LINE client for sending messages
 const lineClient = new Client({
@@ -40,22 +43,118 @@ export function parseWebhookEvents(body: string): WebhookEvent[] {
 }
 
 /**
- * Sends a text reply to a LINE user
+ * Show loading indicator while processing
+ */
+export async function showLoadingIndicator(userId: string): Promise<void> {
+  console.log(`[LINE] Showing loading indicator for user: ${userId}`);
+  try {
+    const response = await fetch('https://api.line.me/v2/bot/chat/loading/start', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.line.channelAccessToken}`,
+      },
+      body: JSON.stringify({
+        chatId: userId,
+        loadingSeconds: 30,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[LINE] Loading indicator failed: ${response.status} - ${errorText}`);
+    } else {
+      console.log('[LINE] Loading indicator started successfully');
+    }
+  } catch (error) {
+    console.error('[LINE] Error showing loading indicator:', error);
+    // Non-critical, don't throw
+  }
+}
+
+/**
+ * Push a message to a user (doesn't require reply token)
+ */
+export async function pushMessage(
+  userId: string,
+  messages: Message[]
+): Promise<void> {
+  try {
+    await lineClient.pushMessage(userId, messages);
+    console.log(`[LINE] Push message sent to ${userId}`);
+  } catch (error) {
+    console.error('[LINE] Error pushing message:', error);
+    throw error;
+  }
+}
+
+/**
+ * Sends a text reply with AI sender styling
+ * Falls back to push message if reply fails
  */
 export async function replyMessage(
   replyToken: string,
-  text: string
+  text: string,
+  userId?: string
 ): Promise<void> {
   const message: TextMessage = {
     type: 'text',
     text,
+    sender: AI_SENDER,
+    quickReply: DEFAULT_QUICK_REPLY,
   };
 
   try {
     await lineClient.replyMessage(replyToken, message);
   } catch (error) {
-    console.error('Error sending reply:', error);
-    throw error;
+    console.error('[LINE] Reply failed, trying push:', error);
+    // Fallback to push message if we have userId
+    if (userId) {
+      await pushMessage(userId, [message]);
+    } else {
+      throw error;
+    }
+  }
+}
+
+/**
+ * Sends a flex message reply
+ */
+export async function replyFlexMessage(
+  replyToken: string,
+  flexMessage: FlexMessage,
+  userId?: string
+): Promise<void> {
+  try {
+    await lineClient.replyMessage(replyToken, flexMessage);
+  } catch (error) {
+    console.error('[LINE] Flex reply failed, trying push:', error);
+    if (userId) {
+      await pushMessage(userId, [flexMessage]);
+    } else {
+      throw error;
+    }
+  }
+}
+
+/**
+ * Sends multiple messages in one reply
+ * Falls back to push message if reply fails
+ */
+export async function replyMessages(
+  replyToken: string,
+  messages: Message[],
+  userId?: string
+): Promise<void> {
+  try {
+    await lineClient.replyMessage(replyToken, messages);
+  } catch (error) {
+    console.error('[LINE] Reply messages failed, trying push:', error);
+    if (userId) {
+      await pushMessage(userId, messages);
+    } else {
+      throw error;
+    }
   }
 }
 
@@ -76,6 +175,34 @@ export function extractTextContent(event: WebhookEvent): string | null {
 }
 
 /**
+ * Extracts postback data from an event
+ * Returns null if not a postback event
+ */
+export function extractPostbackData(event: WebhookEvent): string | null {
+  if (event.type !== 'postback') {
+    return null;
+  }
+
+  return event.postback.data;
+}
+
+/**
+ * Parse postback data into key-value pairs
+ * e.g., "expertId=123&action=book" => { expertId: "123", action: "book" }
+ */
+export function parsePostbackData(data: string): Record<string, string> {
+  const params: Record<string, string> = {};
+  const pairs = data.split('&');
+  for (const pair of pairs) {
+    const [key, value] = pair.split('=');
+    if (key && value !== undefined) {
+      params[key] = value;
+    }
+  }
+  return params;
+}
+
+/**
  * Gets the user ID from an event
  */
 export function getUserId(event: WebhookEvent): string | null {
@@ -93,4 +220,18 @@ export function getReplyToken(event: WebhookEvent): string | null {
     return event.replyToken;
   }
   return null;
+}
+
+/**
+ * Check if event is a postback event
+ */
+export function isPostbackEvent(event: WebhookEvent): boolean {
+  return event.type === 'postback';
+}
+
+/**
+ * Check if event is a message event
+ */
+export function isMessageEvent(event: WebhookEvent): boolean {
+  return event.type === 'message';
 }
