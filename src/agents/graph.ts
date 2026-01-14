@@ -47,12 +47,21 @@ export function getGraph() {
   return compiledGraph;
 }
 
+import type { FlexMessage } from '@line/bot-sdk';
+
+// Response type from processMessage
+export interface ProcessMessageResult {
+  response: string;
+  flexMessage?: FlexMessage;
+}
+
 // Main function to process a message through the graph
 export async function processMessage(
   userMessage: string,
   userId: string,
-  conversationHistory: { role: 'user' | 'assistant'; content: string }[] = []
-): Promise<string> {
+  conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [],
+  expertId?: number
+): Promise<ProcessMessageResult> {
   const graph = getGraph();
 
   // Convert conversation history to LangChain messages
@@ -68,10 +77,14 @@ export async function processMessage(
     userMessage,
     userId,
     messages,
+    expertId,
   };
 
   // Run the graph
   const result = await graph.invoke(initialState);
 
-  return result.response || 'I apologize, but I was unable to process your request. Please try again.';
+  return {
+    response: result.response || 'I apologize, but I was unable to process your request. Please try again.',
+    flexMessage: result.flexMessage,
+  };
 }

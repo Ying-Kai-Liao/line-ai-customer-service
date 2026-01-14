@@ -3,6 +3,8 @@ import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import { config } from '../../config';
 import type { GraphStateType } from '../state';
+import { getAvailableSlots } from '../../tools/expert-api';
+import { createTimeSlotsFlexMessage } from '../../tools/line-flex';
 
 const APPOINTMENT_AGENT_PROMPT = `You are a helpful appointment booking assistant for CircleWe (圈圈), a mental health and wellness platform.
 
@@ -16,8 +18,6 @@ When helping with bookings:
 - Ask which expert they'd like to book with (if not specified)
 - Ask for their preferred date and time
 - Confirm the booking details before finalizing
-
-If you don't have access to real booking data, let the user know that a human agent will follow up to complete the booking.
 
 Respond in the same language the user uses (Traditional Chinese or English).
 Be warm, patient, and helpful throughout the process.`;
@@ -40,6 +40,33 @@ function getLLM() {
 export async function appointmentAgentNode(
   state: GraphStateType
 ): Promise<Partial<GraphStateType>> {
+  // If we have an expertId (from postback), fetch available slots
+  if (state.expertId) {
+    const slots = await getAvailableSlots(state.expertId);
+
+    if (slots && slots.results.length > 0) {
+      const flexMessage = createTimeSlotsFlexMessage(slots);
+      return {
+        response: `這是 ${slots.name} ${slots.title} 的可預約時段，點擊時段即可至官網預約喔！`,
+        flexMessage,
+        toolResults: { availableSlots: slots },
+        messages: [
+          new HumanMessage(state.userMessage),
+          new AIMessage(`Showing available slots for expert ${state.expertId}`),
+        ],
+      };
+    } else {
+      return {
+        response: '抱歉，目前這位專家沒有可預約的時段。請稍後再試或選擇其他專家。',
+        messages: [
+          new HumanMessage(state.userMessage),
+          new AIMessage('No available slots found'),
+        ],
+      };
+    }
+  }
+
+  // No expertId - use LLM to have a conversation about booking
   const llm = getLLM();
 
   const messages = [

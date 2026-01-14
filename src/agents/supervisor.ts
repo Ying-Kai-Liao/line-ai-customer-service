@@ -37,6 +37,15 @@ function getLLM() {
 export async function routerNode(
   state: GraphStateType
 ): Promise<Partial<GraphStateType>> {
+  // If expertId is present, this is a postback for booking - route directly to appointment
+  if (state.expertId) {
+    console.log(`Router: Direct routing to appointment for expertId: ${state.expertId}`);
+    return {
+      currentAgent: 'appointment' as AgentType,
+      isCrisis: false,
+    };
+  }
+
   const llm = getLLM();
 
   const response = await llm.invoke([
