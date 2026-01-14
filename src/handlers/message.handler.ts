@@ -22,6 +22,38 @@ const FALLBACK_MESSAGE =
 const NON_TEXT_MESSAGE =
   '目前我只能處理文字訊息喔！請傳送文字訊息給我。';
 
+// Deduplication: track processed webhook event IDs
+// Events are kept for 5 minutes to handle LINE retries
+const processedEvents = new Map<string, number>();
+const DEDUP_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Cleanup old entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [eventId, timestamp] of processedEvents) {
+    if (now - timestamp > DEDUP_TTL_MS) {
+      processedEvents.delete(eventId);
+    }
+  }
+}, 60 * 1000); // Cleanup every minute
+
+/**
+ * Check if event was already processed (deduplication)
+ */
+function isDuplicateEvent(event: WebhookEvent): boolean {
+  // Use webhookEventId if available (LINE SDK v3+), fallback to timestamp + replyToken
+  const eventId = (event as { webhookEventId?: string }).webhookEventId
+    || `${event.timestamp}-${(event as { replyToken?: string }).replyToken || 'no-token'}`;
+
+  if (processedEvents.has(eventId)) {
+    console.log(`[Dedup] Skipping duplicate event: ${eventId}`);
+    return true;
+  }
+
+  processedEvents.set(eventId, Date.now());
+  return false;
+}
+
 // Helper to create a chat message
 function createChatMessage(
   role: 'user' | 'assistant',
@@ -205,6 +237,11 @@ async function handleMessageEvent(event: WebhookEvent): Promise<void> {
  * Handles a single LINE webhook event
  */
 export async function handleEvent(event: WebhookEvent): Promise<void> {
+  // Skip duplicate events (LINE retries)
+  if (isDuplicateEvent(event)) {
+    return;
+  }
+
   if (isPostbackEvent(event)) {
     await handlePostbackEvent(event);
   } else if (isMessageEvent(event)) {

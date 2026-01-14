@@ -4,17 +4,33 @@ export interface Expert {
   member_id: number;
   personal_name: string;
   identity_desr: string;
-  org_description: string;
+  org_description: string | null;
   expert_years: number;
   domain: string[];
   image: string;
+  thumb?: string;
 }
 
-// API response structure for expert details
-interface ExpertApiResponse extends Expert {
+// Raw API response structure for expert list
+interface RawExpertFromApi {
+  id: number;
+  member_id: number;
+  personal_name: string;
+  identity_desr: string;
+  org_description: string | null;
+  expert_years: number;
+  domain: string;  // API returns domain as newline-separated string
+  image: string;
+  thumb: string;
   plans?: {
     periods?: Record<string, { start_time: string; end_time: string; type?: string }[]>;
   }[];
+}
+
+// API response wrapper
+interface ExpertsApiResponse {
+  success: boolean;
+  data: RawExpertFromApi[];
 }
 
 // Time slot structure
@@ -44,6 +60,28 @@ export interface AvailableSlots {
 const BASE_URL = 'https://circlewelife.com/api';
 
 /**
+ * Convert raw API expert to our Expert interface
+ */
+function transformExpert(raw: RawExpertFromApi): Expert {
+  // Parse domain string (newline-separated) into array
+  const domainArray = raw.domain
+    ? raw.domain.split('\n').map(d => d.trim()).filter(d => d.length > 0)
+    : [];
+
+  return {
+    expert_id: raw.id,
+    member_id: raw.member_id,
+    personal_name: raw.personal_name,
+    identity_desr: raw.identity_desr || '',
+    org_description: raw.org_description,
+    expert_years: raw.expert_years || 0,
+    domain: domainArray,
+    image: raw.image,
+    thumb: raw.thumb,
+  };
+}
+
+/**
  * Get expert details by ID
  */
 export async function getExpertById(expertId: number): Promise<Expert | null> {
@@ -53,8 +91,8 @@ export async function getExpertById(expertId: number): Promise<Expert | null> {
       console.error(`Failed to fetch expert ${expertId}: ${response.status}`);
       return null;
     }
-    const data = await response.json() as ExpertApiResponse;
-    return data;
+    const data = await response.json() as RawExpertFromApi;
+    return transformExpert(data);
   } catch (error) {
     console.error(`Error fetching expert ${expertId}:`, error);
     return null;
@@ -73,7 +111,7 @@ export async function getAvailableSlots(expertId: number): Promise<AvailableSlot
       return null;
     }
 
-    const data = await response.json() as ExpertApiResponse;
+    const data = await response.json() as RawExpertFromApi;
     const slots: TimeSlot[] = [];
     let slotId = 1;
 
@@ -116,86 +154,60 @@ export async function getAvailableSlots(expertId: number): Promise<AvailableSlot
  */
 export async function getExpertsList(): Promise<Expert[]> {
   try {
+    console.log('[API] Fetching experts list...');
     const response = await fetch(`${BASE_URL}/experts`);
     if (!response.ok) {
       console.error(`Failed to fetch experts list: ${response.status}`);
-      return getMockExperts();
+      return [];
     }
-    const data = await response.json() as Expert[];
-    if (Array.isArray(data) && data.length > 0) {
-      return data;
+    const result = await response.json() as ExpertsApiResponse;
+
+    if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+      const experts = result.data.map(transformExpert);
+      console.log(`[API] Found ${experts.length} experts`);
+      return experts;
     }
-    // If API returns empty, use mock data for testing
-    return getMockExperts();
+
+    console.log('[API] No experts found in response');
+    return [];
   } catch (error) {
     console.error('Error fetching experts list:', error);
-    // Fallback to mock data
-    return getMockExperts();
+    return [];
   }
-}
-
-/**
- * Mock experts for testing when API is unavailable
- */
-function getMockExperts(): Expert[] {
-  return [
-    {
-      expert_id: 1,
-      member_id: 101,
-      personal_name: '王心理師',
-      identity_desr: '臨床心理師',
-      org_description: '圈圈心理諮商所',
-      expert_years: 8,
-      domain: ['焦慮', '憂鬱', '人際關係'],
-      image: 'default.jpg',
-    },
-    {
-      expert_id: 2,
-      member_id: 102,
-      personal_name: '李諮商師',
-      identity_desr: '諮商心理師',
-      org_description: '圈圈心理諮商所',
-      expert_years: 5,
-      domain: ['親密關係', '自我探索', '生涯規劃'],
-      image: 'default.jpg',
-    },
-    {
-      expert_id: 3,
-      member_id: 103,
-      personal_name: '陳治療師',
-      identity_desr: '藝術治療師',
-      org_description: '圈圈心理諮商所',
-      expert_years: 6,
-      domain: ['創傷', '情緒調節', '藝術治療'],
-      image: 'default.jpg',
-    },
-  ];
 }
 
 /**
  * Search experts by criteria
  */
 export async function searchExperts(query: string): Promise<TherapistRecommendation> {
-  console.log(`Search experts query: ${query}`);
+  console.log(`[API] Search experts query: ${query}`);
 
   const experts = await getExpertsList();
 
-  // Simple keyword matching (could be enhanced with better search logic)
+  if (experts.length === 0) {
+    return {
+      type: 'therapist_recommendation',
+      results: [],
+    };
+  }
+
+  // Simple keyword matching
   const lowerQuery = query.toLowerCase();
   let filtered = experts;
 
-  // If query contains specific domains, filter by them
-  if (lowerQuery.includes('焦慮') || lowerQuery.includes('anxiety')) {
-    filtered = experts.filter(e => e.domain.some(d => d.includes('焦慮')));
-  } else if (lowerQuery.includes('憂鬱') || lowerQuery.includes('depression')) {
-    filtered = experts.filter(e => e.domain.some(d => d.includes('憂鬱')));
-  } else if (lowerQuery.includes('關係') || lowerQuery.includes('relationship')) {
-    filtered = experts.filter(e => e.domain.some(d => d.includes('關係')));
-  }
-
-  // If no specific filter matched, return all experts
-  if (filtered.length === 0) {
-    filtered = experts;
+  // If query contains specific keywords, filter by domain
+  const keywords = ['焦慮', '憂鬱', '關係', '人際', '情緒', '壓力', '家庭', '親子', '伴侶', '職場', '自我'];
+  for (const keyword of keywords) {
+    if (lowerQuery.includes(keyword)) {
+      const matches = experts.filter(e =>
+        e.domain.some(d => d.includes(keyword)) ||
+        (e.identity_desr && e.identity_desr.includes(keyword))
+      );
+      if (matches.length > 0) {
+        filtered = matches;
+        break;
+      }
+    }
   }
 
   return {

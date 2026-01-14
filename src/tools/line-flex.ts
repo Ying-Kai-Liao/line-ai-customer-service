@@ -47,7 +47,7 @@ export function createExpertBubble(expert: Expert): FlexBubble {
           contents: [
             {
               type: 'image',
-              url: `https://circlewelife.com/images/members/${expert.member_id}?file-name=${expert.image}`,
+              url: expert.thumb || `https://circlewelife.com/images/members/${expert.member_id}?file-name=${expert.image}`,
               aspectMode: 'cover',
               aspectRatio: '1:1',
               size: 'full',
@@ -71,7 +71,9 @@ export function createExpertBubble(expert: Expert): FlexBubble {
             },
             {
               type: 'text',
-              text: `${expert.identity_desr}・${expert.org_description}`,
+              text: expert.org_description
+                ? `${expert.identity_desr}・${expert.org_description}`
+                : expert.identity_desr,
               size: 'sm',
               color: '#777777',
               align: 'center',
@@ -95,7 +97,7 @@ export function createExpertBubble(expert: Expert): FlexBubble {
               contents: [
                 {
                   type: 'text',
-                  text: `✅ ${expert.expert_years}年經驗`,
+                  text: expert.expert_years > 0 ? `✅ ${expert.expert_years}年經驗` : '✅ 專業認證',
                   size: 'sm',
                   color: '#444444',
                 },
@@ -125,7 +127,7 @@ export function createExpertBubble(expert: Expert): FlexBubble {
             },
             {
               type: 'text',
-              text: expert.domain.join('、'),
+              text: expert.domain.length > 0 ? expert.domain.join('、') : '心理諮詢',
               wrap: true,
               size: 'sm',
               color: '#333333',
