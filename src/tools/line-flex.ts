@@ -238,10 +238,11 @@ export function createTimeSlotsFlexMessage(data: AvailableSlots): FlexMessage {
       contents: [
         {
           type: 'text',
-          text: `${data.name} ${data.title}`,
+          text: data.title ? `${data.name} ${data.title}` : data.name,
           size: 'xl',
           weight: 'bold',
           align: 'center',
+          wrap: true,
         },
         {
           type: 'text',

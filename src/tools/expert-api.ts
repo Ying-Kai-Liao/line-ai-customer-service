@@ -99,19 +99,34 @@ export async function getExpertById(expertId: number): Promise<Expert | null> {
   }
 }
 
+// Individual expert API response (different from list API)
+interface ExpertDetailResponse {
+  avatar: string;
+  name: string;
+  educations?: string[];
+  domains?: string[];
+  units?: string[];
+  licenses?: string[];
+  experiences?: string[];
+  plans?: {
+    periods?: Record<string, { status: boolean; time: string }[]>;
+  }[];
+}
+
 /**
  * Get available time slots for an expert
  * Parses the plans.periods structure from the API response
  */
 export async function getAvailableSlots(expertId: number): Promise<AvailableSlots | null> {
   try {
+    console.log(`[API] Fetching slots for expert ${expertId}...`);
     const response = await fetch(`${BASE_URL}/experts/${expertId}`);
     if (!response.ok) {
       console.error(`Failed to fetch expert ${expertId}: ${response.status}`);
       return null;
     }
 
-    const data = await response.json() as RawExpertFromApi;
+    const data = await response.json() as ExpertDetailResponse;
     const slots: TimeSlot[] = [];
     let slotId = 1;
 
@@ -121,14 +136,21 @@ export async function getAvailableSlots(expertId: number): Promise<AvailableSlot
         if (plan.periods && typeof plan.periods === 'object') {
           for (const [date, times] of Object.entries(plan.periods)) {
             if (Array.isArray(times)) {
-              for (const time of times) {
-                slots.push({
-                  slot_id: slotId++,
-                  date,
-                  start_time: time.start_time,
-                  end_time: time.end_time,
-                  channel: 'online',
-                });
+              for (const timeSlot of times) {
+                // Skip unavailable slots
+                if (!timeSlot.status) continue;
+
+                // Parse time format "06:00~07:00" into start/end
+                const [startTime, endTime] = timeSlot.time.split('~');
+                if (startTime && endTime) {
+                  slots.push({
+                    slot_id: slotId++,
+                    date,
+                    start_time: startTime,
+                    end_time: endTime,
+                    channel: 'online',
+                  });
+                }
               }
             }
           }
@@ -136,11 +158,17 @@ export async function getAvailableSlots(expertId: number): Promise<AvailableSlot
       }
     }
 
+    // Use correct field names from individual expert API
+    const expertName = data.name || '專家';
+    const expertTitle = data.units?.[0] || '';
+
+    console.log(`[API] Expert ${expertId}: ${expertName}, found ${slots.length} slots`);
+
     return {
       type: 'available_slots',
       therapist_id: expertId,
-      name: data.personal_name || '',
-      title: data.identity_desr || '',
+      name: expertName,
+      title: expertTitle,
       results: slots.slice(0, 15), // Limit to 15 slots
     };
   } catch (error) {
