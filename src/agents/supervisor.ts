@@ -8,16 +8,15 @@ const ROUTER_PROMPT = `You are a customer service router. Analyze the user's mes
 
 Available agents:
 1. "main" - General customer service queries, FAQs, company information, mental health knowledge
-2. "appointment" - Booking appointments, scheduling, checking available times with experts
-3. "search_expert" - Finding experts, searching for professionals, getting expert recommendations
-4. "notification" - ONLY for crisis situations (self-harm, suicide, severe distress) that require immediate human attention
+2. "search_expert" - Use this when user wants to book, make appointment, find therapist, or needs expert recommendations. This shows available experts.
+3. "notification" - ONLY for crisis situations (self-harm, suicide, severe distress) that require immediate human attention
 
-IMPORTANT: Only route to "notification" if the user expresses:
-- Suicidal thoughts or self-harm intentions
-- Severe mental health crisis
-- Immediate danger to self or others
+IMPORTANT routing rules:
+- "我想預約", "預約", "booking", "找心理師", "推薦專家" → route to "search_expert"
+- Only route to "notification" if user expresses suicidal thoughts, self-harm, or severe crisis
+- General questions about the service → route to "main"
 
-Respond with ONLY the agent name: "main", "appointment", "search_expert", or "notification"`;
+Respond with ONLY the agent name: "main", "search_expert", or "notification"`;
 
 function getLLM() {
   if (config.llmProvider === 'anthropic') {
@@ -61,9 +60,9 @@ export async function routerNode(
   let currentAgent: AgentType = 'main';
   let isCrisis = false;
 
-  if (content.includes('appointment')) {
-    currentAgent = 'appointment';
-  } else if (content.includes('search_expert')) {
+  // Route to search_expert for booking/appointment queries (shows expert carousel)
+  // Appointment agent is only used when user clicks on expert card (has expertId)
+  if (content.includes('search_expert') || content.includes('appointment')) {
     currentAgent = 'search_expert';
   } else if (content.includes('notification')) {
     currentAgent = 'notification';

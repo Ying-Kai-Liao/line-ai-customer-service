@@ -92,14 +92,15 @@ async function handlePostbackEvent(event: WebhookEvent): Promise<void> {
       await addMessageToHistory(userId, assistantMessage);
 
       // Send response - flex message if available, otherwise text
+      // Pass userId for push fallback if reply token expires
       if (result.flexMessage) {
         const messages: Message[] = [
           createTextMessage(result.response) as Message,
           result.flexMessage,
         ];
-        await replyMessages(replyToken, messages);
+        await replyMessages(replyToken, messages, userId);
       } else {
-        await replyMessage(replyToken, result.response);
+        await replyMessage(replyToken, result.response, userId);
       }
 
       console.log(`Processed postback for user ${userId}, expert ${expertId}`);
@@ -110,7 +111,8 @@ async function handlePostbackEvent(event: WebhookEvent): Promise<void> {
     if (params.actionId === '21') {
       await replyMessage(
         replyToken,
-        '好的，我會請真人客服來協助您！請稍候片刻。'
+        '好的，我會請真人客服來協助您！請稍候片刻。',
+        userId
       );
       console.log(`User ${userId} requested human support`);
       return;
@@ -120,7 +122,7 @@ async function handlePostbackEvent(event: WebhookEvent): Promise<void> {
     console.log(`Unknown postback action: ${postbackData}`);
   } catch (error) {
     console.error('Error handling postback:', error);
-    await replyMessage(replyToken, FALLBACK_MESSAGE);
+    await replyMessage(replyToken, FALLBACK_MESSAGE, userId);
   }
 }
 
@@ -179,22 +181,23 @@ async function handleMessageEvent(event: WebhookEvent): Promise<void> {
     await addMessageToHistory(userId, assistantMessage);
 
     // Send reply - flex message if available, otherwise text
+    // Pass userId for push fallback if reply token expires
     if (result.flexMessage) {
       console.log(`[Handler] Sending flex message with text: "${result.response.substring(0, 50)}..."`);
       const messages: Message[] = [
         createTextMessage(result.response) as Message,
         result.flexMessage,
       ];
-      await replyMessages(replyToken, messages);
+      await replyMessages(replyToken, messages, userId);
     } else {
       console.log(`[Handler] Sending text-only response: "${result.response.substring(0, 50)}..."`);
-      await replyMessage(replyToken, result.response);
+      await replyMessage(replyToken, result.response, userId);
     }
 
     console.log(`[Handler] Processed message for user ${userId}`);
   } catch (error) {
     console.error('Error handling message:', error);
-    await replyMessage(replyToken, FALLBACK_MESSAGE);
+    await replyMessage(replyToken, FALLBACK_MESSAGE, userId);
   }
 }
 

@@ -73,11 +73,29 @@ export async function showLoadingIndicator(userId: string): Promise<void> {
 }
 
 /**
+ * Push a message to a user (doesn't require reply token)
+ */
+export async function pushMessage(
+  userId: string,
+  messages: Message[]
+): Promise<void> {
+  try {
+    await lineClient.pushMessage(userId, messages);
+    console.log(`[LINE] Push message sent to ${userId}`);
+  } catch (error) {
+    console.error('[LINE] Error pushing message:', error);
+    throw error;
+  }
+}
+
+/**
  * Sends a text reply with AI sender styling
+ * Falls back to push message if reply fails
  */
 export async function replyMessage(
   replyToken: string,
-  text: string
+  text: string,
+  userId?: string
 ): Promise<void> {
   const message: TextMessage = {
     type: 'text',
@@ -89,8 +107,13 @@ export async function replyMessage(
   try {
     await lineClient.replyMessage(replyToken, message);
   } catch (error) {
-    console.error('Error sending reply:', error);
-    throw error;
+    console.error('[LINE] Reply failed, trying push:', error);
+    // Fallback to push message if we have userId
+    if (userId) {
+      await pushMessage(userId, [message]);
+    } else {
+      throw error;
+    }
   }
 }
 
@@ -99,28 +122,39 @@ export async function replyMessage(
  */
 export async function replyFlexMessage(
   replyToken: string,
-  flexMessage: FlexMessage
+  flexMessage: FlexMessage,
+  userId?: string
 ): Promise<void> {
   try {
     await lineClient.replyMessage(replyToken, flexMessage);
   } catch (error) {
-    console.error('Error sending flex reply:', error);
-    throw error;
+    console.error('[LINE] Flex reply failed, trying push:', error);
+    if (userId) {
+      await pushMessage(userId, [flexMessage]);
+    } else {
+      throw error;
+    }
   }
 }
 
 /**
  * Sends multiple messages in one reply
+ * Falls back to push message if reply fails
  */
 export async function replyMessages(
   replyToken: string,
-  messages: Message[]
+  messages: Message[],
+  userId?: string
 ): Promise<void> {
   try {
     await lineClient.replyMessage(replyToken, messages);
   } catch (error) {
-    console.error('Error sending messages:', error);
-    throw error;
+    console.error('[LINE] Reply messages failed, trying push:', error);
+    if (userId) {
+      await pushMessage(userId, messages);
+    } else {
+      throw error;
+    }
   }
 }
 
