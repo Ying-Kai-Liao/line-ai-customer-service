@@ -28,6 +28,20 @@ export const config = {
   },
   // Number of previous messages to include in context
   maxHistoryMessages: parseInt(process.env.MAX_HISTORY_MESSAGES || '10', 10),
+  // Pinecone configuration for RAG
+  pinecone: {
+    apiKey: process.env.PINECONE_API_KEY || '',
+    indexes: {
+      articles: process.env.PINECONE_INDEX_ARTICLES || 'circle-professional',
+      company: process.env.PINECONE_INDEX_COMPANY || 'company-files',
+    },
+  },
+  // OpenAI embeddings model for RAG
+  embeddings: {
+    model: 'text-embedding-3-small',
+  },
+  // RAG keyword triggers - when these keywords are detected, route to knowledge agent
+  ragKeywords: ['文章', '資料', '最新', '參考', '研究', '相關內容', '知識', '資訊'],
 };
 
 export function validateConfig(): void {

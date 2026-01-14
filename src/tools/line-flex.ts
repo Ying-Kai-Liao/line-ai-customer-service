@@ -200,7 +200,7 @@ export function createTimeSlotsFlexMessage(data: AvailableSlots): FlexMessage {
     groupedByDate[slot.date].push(slot);
   }
 
-  const dates = Object.keys(groupedByDate).slice(0, 4); // Max 4 dates
+  const dates = Object.keys(groupedByDate).slice(0, 2); // Show 2 days
 
   const dateColumns = dates.map((date) => ({
     type: 'box' as const,
@@ -215,7 +215,7 @@ export function createTimeSlotsFlexMessage(data: AvailableSlots): FlexMessage {
         weight: 'bold' as const,
         align: 'center' as const,
       },
-      ...groupedByDate[date].slice(0, 4).map((slot) => ({
+      ...groupedByDate[date].slice(0, 6).map((slot) => ({
         type: 'button' as const,
         style: 'secondary' as const,
         color: '#E1F5FA',

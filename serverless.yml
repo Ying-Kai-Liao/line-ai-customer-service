@@ -14,6 +14,12 @@ provider:
     LINE_CHANNEL_SECRET: ${env:LINE_CHANNEL_SECRET}
     OPENAI_API_KEY: ${env:OPENAI_API_KEY}
     OPENAI_MODEL: ${env:OPENAI_MODEL, 'gpt-4'}
+    ANTHROPIC_API_KEY: ${env:ANTHROPIC_API_KEY, ''}
+    ANTHROPIC_MODEL: ${env:ANTHROPIC_MODEL, 'claude-sonnet-4-20250514'}
+    LLM_PROVIDER: ${env:LLM_PROVIDER, 'openai'}
+    PINECONE_API_KEY: ${env:PINECONE_API_KEY, ''}
+    PINECONE_INDEX_ARTICLES: ${env:PINECONE_INDEX_ARTICLES, 'circle-professional'}
+    PINECONE_INDEX_COMPANY: ${env:PINECONE_INDEX_COMPANY, 'company-files'}
     DYNAMODB_TABLE_NAME: ${self:service}-${self:provider.stage}
     MAX_HISTORY_MESSAGES: ${env:MAX_HISTORY_MESSAGES, '10'}
   iam:
