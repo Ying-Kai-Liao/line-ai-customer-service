@@ -6,6 +6,7 @@ import {
   appointmentAgentNode,
   searchExpertAgentNode,
   notificationAgentNode,
+  knowledgeAgentNode,
 } from './nodes';
 
 // Build the customer service agent graph
@@ -18,6 +19,7 @@ function buildGraph() {
     .addNode('appointment', appointmentAgentNode)
     .addNode('search_expert', searchExpertAgentNode)
     .addNode('notification', notificationAgentNode)
+    .addNode('knowledge', knowledgeAgentNode)
     // Set entry point
     .addEdge('__start__', 'router')
     // Add conditional routing from router to agents
@@ -26,12 +28,14 @@ function buildGraph() {
       appointment: 'appointment',
       search_expert: 'search_expert',
       notification: 'notification',
+      knowledge: 'knowledge',
     })
     // All agents end after responding
     .addEdge('main', END)
     .addEdge('appointment', END)
     .addEdge('search_expert', END)
-    .addEdge('notification', END);
+    .addEdge('notification', END)
+    .addEdge('knowledge', END);
 
   return workflow.compile();
 }

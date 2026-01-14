@@ -3,6 +3,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { config } from '../config';
 import type { GraphStateType, AgentType } from './state';
+import { hasRAGKeywords } from '../services/rag.service';
 
 const ROUTER_PROMPT = `You are a customer service router. Analyze the user's message and determine which specialized agent should handle it.
 
@@ -41,6 +42,15 @@ export async function routerNode(
     console.log(`Router: Direct routing to appointment for expertId: ${state.expertId}`);
     return {
       currentAgent: 'appointment' as AgentType,
+      isCrisis: false,
+    };
+  }
+
+  // Check for RAG keywords - route to knowledge agent for document retrieval
+  if (hasRAGKeywords(state.userMessage)) {
+    console.log(`Router: RAG keyword detected, routing to knowledge agent for: "${state.userMessage.substring(0, 50)}..."`);
+    return {
+      currentAgent: 'knowledge' as AgentType,
       isCrisis: false,
     };
   }

@@ -3,7 +3,7 @@ import { BaseMessage } from '@langchain/core/messages';
 import type { FlexMessage } from '@line/bot-sdk';
 
 // Agent types for routing
-export type AgentType = 'main' | 'appointment' | 'search_expert' | 'notification';
+export type AgentType = 'main' | 'appointment' | 'search_expert' | 'notification' | 'knowledge';
 
 // Graph state annotation for LangGraph
 export const GraphState = Annotation.Root({
