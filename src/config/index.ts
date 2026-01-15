@@ -17,6 +17,9 @@ export const config = {
     tableName: process.env.DYNAMODB_TABLE_NAME || 'line-chat-history',
     region: process.env.AWS_REGION || 'ap-northeast-1',
   },
+  neon: {
+    connectionString: process.env.NEON_DATABASE_URL || '',
+  },
   // Expert API for appointments
   expertApi: {
     url: process.env.EXPERT_API_URL || '',
