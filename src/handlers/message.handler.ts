@@ -12,6 +12,7 @@ import {
   isMessageEvent,
 } from '../services/line.service';
 import { getChatHistory, addMessageToHistory } from '../services/dynamo.service';
+import { storeRawMessage } from '../services/raw-message.service';
 import { processMessage } from '../agents/graph';
 import { createTextMessage } from '../tools/line-flex';
 import type { ChatMessage } from '../types';
@@ -241,6 +242,11 @@ export async function handleEvent(event: WebhookEvent): Promise<void> {
   if (isDuplicateEvent(event)) {
     return;
   }
+
+  // Store raw message for auditing/analytics (non-blocking)
+  storeRawMessage(event).catch((error) => {
+    console.error('[Handler] Failed to store raw message:', error);
+  });
 
   if (isPostbackEvent(event)) {
     await handlePostbackEvent(event);

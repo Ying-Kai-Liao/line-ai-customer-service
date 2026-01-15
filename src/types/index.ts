@@ -40,3 +40,15 @@ export interface APIGatewayResponse {
   headers?: Record<string, string>;
   body: string;
 }
+
+// Raw message stored in DynamoDB for auditing/analytics
+export interface RawMessage {
+  messageId: string;          // Unique message ID (webhookEventId or generated)
+  userId: string;             // LINE user ID
+  eventType: string;          // message, postback, follow, unfollow, etc.
+  sourceType: string;         // user, group, room
+  rawEvent: WebhookEvent;     // Complete raw LINE webhook event
+  timestamp: number;          // Event timestamp from LINE
+  receivedAt: number;         // When we received the event
+  ttl: number;                // DynamoDB TTL for auto-expiration
+}
