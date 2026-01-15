@@ -1,5 +1,5 @@
 -- Create raw_messages table for storing LINE webhook events
--- Run this in your Supabase SQL Editor: https://supabase.com/dashboard/project/YOUR_PROJECT/sql
+-- Run this in your Neon SQL Editor: https://console.neon.tech
 
 CREATE TABLE IF NOT EXISTS raw_messages (
   id BIGSERIAL PRIMARY KEY,
@@ -21,21 +21,6 @@ CREATE INDEX IF NOT EXISTS idx_raw_messages_event_type ON raw_messages(event_typ
 
 -- Create unique constraint on message_id to prevent duplicates
 CREATE UNIQUE INDEX IF NOT EXISTS idx_raw_messages_message_id ON raw_messages(message_id);
-
--- Enable Row Level Security (RLS) - optional but recommended
-ALTER TABLE raw_messages ENABLE ROW LEVEL SECURITY;
-
--- Create policy to allow insert from service role (anon key with service_role)
--- Adjust this based on your security requirements
-CREATE POLICY "Allow insert for authenticated users" ON raw_messages
-  FOR INSERT
-  TO anon
-  WITH CHECK (true);
-
-CREATE POLICY "Allow select for authenticated users" ON raw_messages
-  FOR SELECT
-  TO anon
-  USING (true);
 
 -- Add comment to table
 COMMENT ON TABLE raw_messages IS 'Stores raw LINE webhook events for permanent storage and analytics';

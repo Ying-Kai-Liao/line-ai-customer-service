@@ -17,9 +17,8 @@ export const config = {
     tableName: process.env.DYNAMODB_TABLE_NAME || 'line-chat-history',
     region: process.env.AWS_REGION || 'ap-northeast-1',
   },
-  supabase: {
-    url: process.env.SUPABASE_URL || '',
-    anonKey: process.env.SUPABASE_ANON_KEY || '',
+  neon: {
+    connectionString: process.env.NEON_DATABASE_URL || '',
   },
   // Expert API for appointments
   expertApi: {

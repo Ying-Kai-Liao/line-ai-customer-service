@@ -22,8 +22,7 @@ provider:
     PINECONE_INDEX_COMPANY: ${env:PINECONE_INDEX_COMPANY, 'company-files'}
     DYNAMODB_TABLE_NAME: ${self:service}-${self:provider.stage}
     MAX_HISTORY_MESSAGES: ${env:MAX_HISTORY_MESSAGES, '10'}
-    SUPABASE_URL: ${env:SUPABASE_URL, ''}
-    SUPABASE_ANON_KEY: ${env:SUPABASE_ANON_KEY, ''}
+    NEON_DATABASE_URL: ${env:NEON_DATABASE_URL, ''}
   iam:
     role:
       statements:

@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { neon } from '@neondatabase/serverless';
 import type { WebhookEvent } from '@line/bot-sdk';
 import { config } from '../config';
 import type { RawMessage } from '../types';
@@ -7,17 +7,14 @@ import type { RawMessage } from '../types';
 const localStore: RawMessage[] = [];
 const isLocalMode = process.env.USE_LOCAL_STORAGE === 'true';
 
-// Supabase client (lazy initialization)
-let supabase: SupabaseClient | null = null;
-
-function getSupabaseClient(): SupabaseClient {
-  if (!supabase) {
-    if (!config.supabase.url || !config.supabase.anonKey) {
-      throw new Error('Supabase URL and anon key are required');
-    }
-    supabase = createClient(config.supabase.url, config.supabase.anonKey);
+/**
+ * Get Neon SQL client
+ */
+function getSql() {
+  if (!config.neon.connectionString) {
+    throw new Error('NEON_DATABASE_URL is required');
   }
-  return supabase;
+  return neon(config.neon.connectionString);
 }
 
 /**
@@ -52,7 +49,7 @@ function getUserIdFromEvent(event: WebhookEvent): string {
 }
 
 /**
- * Store a raw LINE webhook event in Supabase
+ * Store a raw LINE webhook event in Neon
  */
 export async function storeRawMessage(event: WebhookEvent): Promise<void> {
   const messageId = getMessageId(event);
@@ -75,15 +72,12 @@ export async function storeRawMessage(event: WebhookEvent): Promise<void> {
   }
 
   try {
-    const client = getSupabaseClient();
-    const { error } = await client
-      .from('raw_messages')
-      .insert(rawMessage);
-
-    if (error) {
-      console.error('[RawMessage] Supabase error:', error);
-      return;
-    }
+    const sql = getSql();
+    await sql`
+      INSERT INTO raw_messages (message_id, user_id, event_type, source_type, raw_event, timestamp, received_at)
+      VALUES (${rawMessage.message_id}, ${rawMessage.user_id}, ${rawMessage.event_type}, ${rawMessage.source_type}, ${JSON.stringify(rawMessage.raw_event)}, ${rawMessage.timestamp}, ${rawMessage.received_at})
+      ON CONFLICT (message_id) DO NOTHING
+    `;
 
     console.log(`[RawMessage] Stored: ${messageId} for user ${userId}`);
   } catch (error) {
@@ -113,29 +107,40 @@ export async function getRawMessagesByUser(
   }
 
   try {
-    const client = getSupabaseClient();
-    let query = client
-      .from('raw_messages')
-      .select('*')
-      .eq('user_id', userId)
-      .order('timestamp', { ascending: false })
-      .limit(limit);
+    const sql = getSql();
+    let rows;
 
-    if (startTime) {
-      query = query.gte('timestamp', startTime);
+    if (startTime && endTime) {
+      rows = await sql`
+        SELECT * FROM raw_messages
+        WHERE user_id = ${userId} AND timestamp >= ${startTime} AND timestamp <= ${endTime}
+        ORDER BY timestamp DESC
+        LIMIT ${limit}
+      `;
+    } else if (startTime) {
+      rows = await sql`
+        SELECT * FROM raw_messages
+        WHERE user_id = ${userId} AND timestamp >= ${startTime}
+        ORDER BY timestamp DESC
+        LIMIT ${limit}
+      `;
+    } else if (endTime) {
+      rows = await sql`
+        SELECT * FROM raw_messages
+        WHERE user_id = ${userId} AND timestamp <= ${endTime}
+        ORDER BY timestamp DESC
+        LIMIT ${limit}
+      `;
+    } else {
+      rows = await sql`
+        SELECT * FROM raw_messages
+        WHERE user_id = ${userId}
+        ORDER BY timestamp DESC
+        LIMIT ${limit}
+      `;
     }
-    if (endTime) {
-      query = query.lte('timestamp', endTime);
-    }
 
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('[RawMessage] Supabase query error:', error);
-      return [];
-    }
-
-    return (data || []) as RawMessage[];
+    return rows as RawMessage[];
   } catch (error) {
     console.error('[RawMessage] Error querying raw messages:', error);
     return [];
@@ -154,19 +159,14 @@ export async function getAllRawMessages(
   }
 
   try {
-    const client = getSupabaseClient();
-    const { data, error } = await client
-      .from('raw_messages')
-      .select('*')
-      .order('timestamp', { ascending: false })
-      .range(offset, offset + limit - 1);
+    const sql = getSql();
+    const rows = await sql`
+      SELECT * FROM raw_messages
+      ORDER BY timestamp DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
 
-    if (error) {
-      console.error('[RawMessage] Supabase query error:', error);
-      return [];
-    }
-
-    return (data || []) as RawMessage[];
+    return rows as RawMessage[];
   } catch (error) {
     console.error('[RawMessage] Error querying all raw messages:', error);
     return [];
