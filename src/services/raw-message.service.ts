@@ -1,9 +1,4 @@
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import {
-  DynamoDBDocumentClient,
-  PutCommand,
-  QueryCommand,
-} from '@aws-sdk/lib-dynamodb';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { WebhookEvent } from '@line/bot-sdk';
 import { config } from '../config';
 import type { RawMessage } from '../types';
@@ -12,11 +7,18 @@ import type { RawMessage } from '../types';
 const localStore: RawMessage[] = [];
 const isLocalMode = process.env.USE_LOCAL_STORAGE === 'true';
 
-const client = new DynamoDBClient({ region: config.dynamodb.region });
-const docClient = DynamoDBDocumentClient.from(client);
+// Supabase client (lazy initialization)
+let supabase: SupabaseClient | null = null;
 
-// TTL: 30 days in seconds (raw messages kept longer for audit/analytics)
-const TTL_SECONDS = 30 * 24 * 60 * 60;
+function getSupabaseClient(): SupabaseClient {
+  if (!supabase) {
+    if (!config.supabase.url || !config.supabase.anonKey) {
+      throw new Error('Supabase URL and anon key are required');
+    }
+    supabase = createClient(config.supabase.url, config.supabase.anonKey);
+  }
+  return supabase;
+}
 
 /**
  * Generate a unique message ID from the webhook event
@@ -50,37 +52,39 @@ function getUserIdFromEvent(event: WebhookEvent): string {
 }
 
 /**
- * Store a raw LINE webhook event
+ * Store a raw LINE webhook event in Supabase
  */
 export async function storeRawMessage(event: WebhookEvent): Promise<void> {
   const messageId = getMessageId(event);
   const userId = getUserIdFromEvent(event);
-  const now = Date.now();
 
-  const rawMessage: RawMessage = {
-    messageId,
-    userId,
-    eventType: event.type,
-    sourceType: event.source.type,
-    rawEvent: event,
+  const rawMessage: Omit<RawMessage, 'id' | 'created_at'> = {
+    message_id: messageId,
+    user_id: userId,
+    event_type: event.type,
+    source_type: event.source.type,
+    raw_event: event,
     timestamp: event.timestamp,
-    receivedAt: now,
-    ttl: Math.floor(now / 1000) + TTL_SECONDS,
+    received_at: new Date().toISOString(),
   };
 
   if (isLocalMode) {
-    localStore.push(rawMessage);
+    localStore.push(rawMessage as RawMessage);
     console.log(`[RawMessage] Stored locally: ${messageId} for user ${userId}`);
     return;
   }
 
   try {
-    await docClient.send(
-      new PutCommand({
-        TableName: config.dynamodb.rawMessagesTableName,
-        Item: rawMessage,
-      })
-    );
+    const client = getSupabaseClient();
+    const { error } = await client
+      .from('raw_messages')
+      .insert(rawMessage);
+
+    if (error) {
+      console.error('[RawMessage] Supabase error:', error);
+      return;
+    }
+
     console.log(`[RawMessage] Stored: ${messageId} for user ${userId}`);
   } catch (error) {
     console.error('[RawMessage] Error storing raw message:', error);
@@ -98,7 +102,7 @@ export async function getRawMessagesByUser(
   limit: number = 100
 ): Promise<RawMessage[]> {
   if (isLocalMode) {
-    let messages = localStore.filter((msg) => msg.userId === userId);
+    let messages = localStore.filter((msg) => msg.user_id === userId);
     if (startTime) {
       messages = messages.filter((msg) => msg.timestamp >= startTime);
     }
@@ -109,47 +113,62 @@ export async function getRawMessagesByUser(
   }
 
   try {
-    const params: {
-      TableName: string;
-      IndexName: string;
-      KeyConditionExpression: string;
-      ExpressionAttributeValues: Record<string, string | number>;
-      Limit: number;
-      ScanIndexForward: boolean;
-    } = {
-      TableName: config.dynamodb.rawMessagesTableName,
-      IndexName: 'timestamp-index',
-      KeyConditionExpression: 'userId = :userId',
-      ExpressionAttributeValues: {
-        ':userId': userId,
-      },
-      Limit: limit,
-      ScanIndexForward: false, // Most recent first
-    };
+    const client = getSupabaseClient();
+    let query = client
+      .from('raw_messages')
+      .select('*')
+      .eq('user_id', userId)
+      .order('timestamp', { ascending: false })
+      .limit(limit);
 
-    // Add time range conditions if provided
-    if (startTime && endTime) {
-      params.KeyConditionExpression += ' AND #ts BETWEEN :startTime AND :endTime';
-      params.ExpressionAttributeValues[':startTime'] = startTime;
-      params.ExpressionAttributeValues[':endTime'] = endTime;
-    } else if (startTime) {
-      params.KeyConditionExpression += ' AND #ts >= :startTime';
-      params.ExpressionAttributeValues[':startTime'] = startTime;
-    } else if (endTime) {
-      params.KeyConditionExpression += ' AND #ts <= :endTime';
-      params.ExpressionAttributeValues[':endTime'] = endTime;
+    if (startTime) {
+      query = query.gte('timestamp', startTime);
+    }
+    if (endTime) {
+      query = query.lte('timestamp', endTime);
     }
 
-    const result = await docClient.send(
-      new QueryCommand({
-        ...params,
-        ExpressionAttributeNames: startTime || endTime ? { '#ts': 'timestamp' } : undefined,
-      })
-    );
+    const { data, error } = await query;
 
-    return (result.Items || []) as RawMessage[];
+    if (error) {
+      console.error('[RawMessage] Supabase query error:', error);
+      return [];
+    }
+
+    return (data || []) as RawMessage[];
   } catch (error) {
     console.error('[RawMessage] Error querying raw messages:', error);
+    return [];
+  }
+}
+
+/**
+ * Get all raw messages (for analytics/export)
+ */
+export async function getAllRawMessages(
+  limit: number = 1000,
+  offset: number = 0
+): Promise<RawMessage[]> {
+  if (isLocalMode) {
+    return localStore.slice(offset, offset + limit);
+  }
+
+  try {
+    const client = getSupabaseClient();
+    const { data, error } = await client
+      .from('raw_messages')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error('[RawMessage] Supabase query error:', error);
+      return [];
+    }
+
+    return (data || []) as RawMessage[];
+  } catch (error) {
+    console.error('[RawMessage] Error querying all raw messages:', error);
     return [];
   }
 }

@@ -15,8 +15,11 @@ export const config = {
   llmProvider: (process.env.LLM_PROVIDER || 'anthropic') as 'anthropic' | 'openai',
   dynamodb: {
     tableName: process.env.DYNAMODB_TABLE_NAME || 'line-chat-history',
-    rawMessagesTableName: process.env.DYNAMODB_RAW_MESSAGES_TABLE || 'line-raw-messages',
     region: process.env.AWS_REGION || 'ap-northeast-1',
+  },
+  supabase: {
+    url: process.env.SUPABASE_URL || '',
+    anonKey: process.env.SUPABASE_ANON_KEY || '',
   },
   // Expert API for appointments
   expertApi: {

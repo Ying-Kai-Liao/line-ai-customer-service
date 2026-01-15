@@ -21,8 +21,9 @@ provider:
     PINECONE_INDEX_ARTICLES: ${env:PINECONE_INDEX_ARTICLES, 'circle-professional'}
     PINECONE_INDEX_COMPANY: ${env:PINECONE_INDEX_COMPANY, 'company-files'}
     DYNAMODB_TABLE_NAME: ${self:service}-${self:provider.stage}
-    DYNAMODB_RAW_MESSAGES_TABLE: ${self:service}-raw-messages-${self:provider.stage}
     MAX_HISTORY_MESSAGES: ${env:MAX_HISTORY_MESSAGES, '10'}
+    SUPABASE_URL: ${env:SUPABASE_URL, ''}
+    SUPABASE_ANON_KEY: ${env:SUPABASE_ANON_KEY, ''}
   iam:
     role:
       statements:
@@ -34,14 +35,6 @@ provider:
             - dynamodb:DeleteItem
           Resource:
             - !GetAtt ChatHistoryTable.Arn
-        - Effect: Allow
-          Action:
-            - dynamodb:GetItem
-            - dynamodb:PutItem
-            - dynamodb:Query
-          Resource:
-            - !GetAtt RawMessagesTable.Arn
-            - !Sub "${RawMessagesTable.Arn}/index/*"
 
 functions:
   webhook:
@@ -69,35 +62,6 @@ resources:
         KeySchema:
           - AttributeName: userId
             KeyType: HASH
-        TimeToLiveSpecification:
-          AttributeName: ttl
-          Enabled: true
-    RawMessagesTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: ${self:service}-raw-messages-${self:provider.stage}
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: userId
-            AttributeType: S
-          - AttributeName: messageId
-            AttributeType: S
-          - AttributeName: timestamp
-            AttributeType: N
-        KeySchema:
-          - AttributeName: userId
-            KeyType: HASH
-          - AttributeName: messageId
-            KeyType: RANGE
-        GlobalSecondaryIndexes:
-          - IndexName: timestamp-index
-            KeySchema:
-              - AttributeName: userId
-                KeyType: HASH
-              - AttributeName: timestamp
-                KeyType: RANGE
-            Projection:
-              ProjectionType: ALL
         TimeToLiveSpecification:
           AttributeName: ttl
           Enabled: true
