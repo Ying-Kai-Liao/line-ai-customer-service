@@ -23,7 +23,6 @@ provider:
     DYNAMODB_TABLE_NAME: ${self:service}-${self:provider.stage}
     MAX_HISTORY_MESSAGES: ${env:MAX_HISTORY_MESSAGES, '10'}
     NEON_DATABASE_URL: ${env:NEON_DATABASE_URL, ''}
-    ADMIN_API_KEY: ${env:ADMIN_API_KEY, ''}
   iam:
     role:
       statements:
@@ -47,18 +46,6 @@ functions:
       - http:
           path: webhook
           method: get
-          cors: true
-
-  admin:
-    handler: dist/admin.admin
-    events:
-      - http:
-          path: admin/{proxy+}
-          method: get
-          cors: true
-      - http:
-          path: admin/{proxy+}
-          method: options
           cors: true
 
 resources:
