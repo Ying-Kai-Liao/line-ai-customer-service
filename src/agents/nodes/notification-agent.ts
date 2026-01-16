@@ -4,8 +4,10 @@ import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages
 import { config } from '../../config';
 import type { GraphStateType } from '../state';
 import { trackCrisisEvent } from '../../services/analytics.service';
+import { getPrompt } from '../../services/prompt.service';
+import { logLLMCall } from '../../services/llm-observability.service';
 
-const NOTIFICATION_AGENT_PROMPT = `You are a crisis support assistant for CircleWe (圈圈). A user is in distress and may need immediate support.
+const DEFAULT_NOTIFICATION_PROMPT = `You are a crisis support assistant for CircleWe (圈圈). A user is in distress and may need immediate support.
 
 Your role is to:
 1. Respond with empathy and compassion
@@ -50,16 +52,44 @@ export async function notificationAgentNode(
 ): Promise<Partial<GraphStateType>> {
   const llm = getLLM();
 
+  // Get prompt from DB (with fallback to default)
+  const systemPrompt = await getPrompt('notification_agent').catch(() => DEFAULT_NOTIFICATION_PROMPT);
+
   const messages = [
-    new SystemMessage(NOTIFICATION_AGENT_PROMPT),
+    new SystemMessage(systemPrompt),
     new HumanMessage(state.userMessage),
   ];
 
+  // Track input messages for logging
+  const inputMessages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: state.userMessage },
+  ];
+
+  const startTime = Date.now();
   const response = await llm.invoke(messages);
+  const durationMs = Date.now() - startTime;
 
   const content = typeof response.content === 'string'
     ? response.content
     : '';
+
+  // Log LLM call (non-blocking)
+  setImmediate(() => {
+    logLLMCall({
+      user_id: state.userId,
+      agent_type: 'notification',
+      model: config.llmProvider === 'anthropic' ? config.anthropic.model : config.openai.model,
+      provider: config.llmProvider,
+      system_prompt: systemPrompt,
+      input_messages: inputMessages,
+      output_content: content,
+      prompt_tokens: (response as { usage_metadata?: { input_tokens?: number } }).usage_metadata?.input_tokens,
+      completion_tokens: (response as { usage_metadata?: { output_tokens?: number } }).usage_metadata?.output_tokens,
+      duration_ms: durationMs,
+      status: 'success',
+    }).catch(() => {});
+  });
 
   // Log crisis for monitoring (in production, this would send email/notification)
   console.log(`[CRISIS ALERT] User ${state.userId} - Message: ${state.userMessage}`);

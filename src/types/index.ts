@@ -150,3 +150,49 @@ export interface DailyMetrics {
   rag_queries: number;
   created_at?: string;
 }
+
+// ============================================
+// LLM Observability types
+// ============================================
+
+// LLM call log entry
+export interface LLMCall {
+  id?: number;
+  user_id: string;
+  agent_type: string;
+  model: string;
+  provider: string;
+  system_prompt?: string;
+  input_messages: object[];
+  output_content?: string;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  duration_ms?: number;
+  status: 'pending' | 'success' | 'error';
+  error_message?: string;
+  created_at?: string;
+}
+
+// LLM stats summary
+export interface LLMStats {
+  totalCalls: number;
+  totalTokens: number;
+  avgDurationMs: number;
+  errorRate: number;
+  byAgent: Record<string, { calls: number; tokens: number }>;
+  byDay: Record<string, number>;
+}
+
+// Editable system prompt
+export interface Prompt {
+  id?: number;
+  name: string;
+  display_name: string;
+  description?: string;
+  content: string;
+  version: number;
+  previous_content?: string;
+  updated_at?: string;
+  created_at?: string;
+}

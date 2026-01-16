@@ -6,8 +6,10 @@ import type { GraphStateType } from '../state';
 import { getAvailableSlots } from '../../tools/expert-api';
 import { createTimeSlotsFlexMessage } from '../../tools/line-flex';
 import { trackExpertInteraction } from '../../services/analytics.service';
+import { getPrompt } from '../../services/prompt.service';
+import { logLLMCall } from '../../services/llm-observability.service';
 
-const APPOINTMENT_AGENT_PROMPT = `You are a helpful appointment booking assistant for CircleWe (圈圈), a mental health and wellness platform.
+const DEFAULT_APPOINTMENT_PROMPT = `You are a helpful appointment booking assistant for CircleWe (圈圈), a mental health and wellness platform.
 
 Your role is to:
 1. Help users book appointments with mental health professionals
@@ -79,17 +81,49 @@ export async function appointmentAgentNode(
   // No expertId - use LLM to have a conversation about booking
   const llm = getLLM();
 
+  // Get prompt from DB (with fallback to default)
+  const systemPrompt = await getPrompt('appointment_agent').catch(() => DEFAULT_APPOINTMENT_PROMPT);
+
   const messages = [
-    new SystemMessage(APPOINTMENT_AGENT_PROMPT),
+    new SystemMessage(systemPrompt),
     ...state.messages,
     new HumanMessage(state.userMessage),
   ];
 
+  // Track input messages for logging
+  const inputMessages = [
+    { role: 'system', content: systemPrompt },
+    ...state.messages.map(m => ({
+      role: m._getType() === 'human' ? 'user' : 'assistant',
+      content: typeof m.content === 'string' ? m.content : '',
+    })),
+    { role: 'user', content: state.userMessage },
+  ];
+
+  const startTime = Date.now();
   const response = await llm.invoke(messages);
+  const durationMs = Date.now() - startTime;
 
   const content = typeof response.content === 'string'
     ? response.content
     : '';
+
+  // Log LLM call (non-blocking)
+  setImmediate(() => {
+    logLLMCall({
+      user_id: state.userId,
+      agent_type: 'appointment',
+      model: config.llmProvider === 'anthropic' ? config.anthropic.model : config.openai.model,
+      provider: config.llmProvider,
+      system_prompt: systemPrompt,
+      input_messages: inputMessages,
+      output_content: content,
+      prompt_tokens: (response as { usage_metadata?: { input_tokens?: number } }).usage_metadata?.input_tokens,
+      completion_tokens: (response as { usage_metadata?: { output_tokens?: number } }).usage_metadata?.output_tokens,
+      duration_ms: durationMs,
+      status: 'success',
+    }).catch(() => {});
+  });
 
   return {
     response: content,

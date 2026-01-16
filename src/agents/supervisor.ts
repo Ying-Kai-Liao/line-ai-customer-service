@@ -5,6 +5,8 @@ import { config } from '../config';
 import type { GraphStateType, AgentType } from './state';
 import { getRAGKeywords } from '../services/rag.service';
 import { trackAgentRouting } from '../services/analytics.service';
+import { getPrompt } from '../services/prompt.service';
+import { logLLMCall } from '../services/llm-observability.service';
 
 const ROUTER_PROMPT = `You are a customer service router for CircleWe (圈圈), a mental health platform. Analyze the conversation and determine which agent should handle the user's latest message.
 
@@ -106,14 +108,42 @@ export async function routerNode(
     }).join('\n');
   }
 
+  // Get router prompt from DB (with fallback to hardcoded)
+  const routerPrompt = await getPrompt('router').catch(() => ROUTER_PROMPT);
+  const fullPrompt = routerPrompt + conversationContext;
+
+  const startTime = Date.now();
+  const inputMessages = [
+    { role: 'system', content: fullPrompt },
+    { role: 'user', content: `Current user message: ${state.userMessage}` },
+  ];
+
   const response = await llm.invoke([
-    new SystemMessage(ROUTER_PROMPT + conversationContext),
+    new SystemMessage(fullPrompt),
     new HumanMessage(`Current user message: ${state.userMessage}`),
   ]);
 
   const content = typeof response.content === 'string'
     ? response.content.toLowerCase().trim()
     : '';
+
+  // Log LLM call (non-blocking)
+  const durationMs = Date.now() - startTime;
+  setImmediate(() => {
+    logLLMCall({
+      user_id: state.userId,
+      agent_type: 'router',
+      model: config.llmProvider === 'anthropic' ? config.anthropic.model : config.openai.model,
+      provider: config.llmProvider,
+      system_prompt: fullPrompt,
+      input_messages: inputMessages,
+      output_content: content,
+      prompt_tokens: (response as { usage_metadata?: { input_tokens?: number } }).usage_metadata?.input_tokens,
+      completion_tokens: (response as { usage_metadata?: { output_tokens?: number } }).usage_metadata?.output_tokens,
+      duration_ms: durationMs,
+      status: 'success',
+    }).catch(() => {});
+  });
 
   // Parse the agent type from response
   // Route to search_expert for booking/appointment queries (shows expert carousel)

@@ -3,8 +3,10 @@ import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import { config } from '../../config';
 import type { GraphStateType } from '../state';
+import { getPrompt } from '../../services/prompt.service';
+import { logLLMCall } from '../../services/llm-observability.service';
 
-const MAIN_AGENT_PROMPT = `You are a helpful, friendly, and professional customer service assistant for CircleWe (圈圈), a mental health and wellness platform.
+const DEFAULT_MAIN_AGENT_PROMPT = `You are a helpful, friendly, and professional customer service assistant for CircleWe (圈圈), a mental health and wellness platform.
 
 Your role is to:
 1. Answer customer questions clearly and concisely
@@ -39,18 +41,50 @@ export async function mainAgentNode(
 ): Promise<Partial<GraphStateType>> {
   const llm = getLLM();
 
+  // Get prompt from DB (with fallback to default)
+  const systemPrompt = await getPrompt('main_agent').catch(() => DEFAULT_MAIN_AGENT_PROMPT);
+
   // Build messages with conversation history
   const messages = [
-    new SystemMessage(MAIN_AGENT_PROMPT),
+    new SystemMessage(systemPrompt),
     ...state.messages,
     new HumanMessage(state.userMessage),
   ];
 
+  // Track input messages for logging
+  const inputMessages = [
+    { role: 'system', content: systemPrompt },
+    ...state.messages.map(m => ({
+      role: m._getType() === 'human' ? 'user' : 'assistant',
+      content: typeof m.content === 'string' ? m.content : '',
+    })),
+    { role: 'user', content: state.userMessage },
+  ];
+
+  const startTime = Date.now();
   const response = await llm.invoke(messages);
+  const durationMs = Date.now() - startTime;
 
   const content = typeof response.content === 'string'
     ? response.content
     : '';
+
+  // Log LLM call (non-blocking)
+  setImmediate(() => {
+    logLLMCall({
+      user_id: state.userId,
+      agent_type: 'main',
+      model: config.llmProvider === 'anthropic' ? config.anthropic.model : config.openai.model,
+      provider: config.llmProvider,
+      system_prompt: systemPrompt,
+      input_messages: inputMessages,
+      output_content: content,
+      prompt_tokens: (response as { usage_metadata?: { input_tokens?: number } }).usage_metadata?.input_tokens,
+      completion_tokens: (response as { usage_metadata?: { output_tokens?: number } }).usage_metadata?.output_tokens,
+      duration_ms: durationMs,
+      status: 'success',
+    }).catch(() => {});
+  });
 
   return {
     response: content,
