@@ -8,23 +8,35 @@ import { trackAgentRouting } from '../services/analytics.service';
 import { getPrompt } from '../services/prompt.service';
 import { logLLMCall } from '../services/llm-observability.service';
 
-const ROUTER_PROMPT = `You are a customer service router for CircleWe (圈圈), a mental health platform. Analyze the conversation and determine which agent should handle the user's latest message.
+const ROUTER_PROMPT = `You are a customer service router for CircleWe (圈圈), a mental health platform.
+
+IMPORTANT: This bot does NOT provide emotional support. It helps users find professionals.
 
 Available agents:
-1. "main" - General customer service queries, FAQs, company information, mental health knowledge
+1. "main" - Company info, service FAQs, general questions (NOT emotional support)
 2. "search_expert" - Finding therapists, booking appointments, expert recommendations. Use this when:
    - User wants to book/make appointment (預約, booking)
    - User is looking for a therapist (找心理師, 找專家)
    - User mentions a topic they need help with (人際關係, 焦慮, 憂鬱, etc.) in context of seeking professional help
    - User is responding to questions about their needs/preferences for expert matching
-3. "notification" - ONLY for crisis situations (self-harm, suicide, severe distress)
+3. "emotional_support" - When user expresses emotional distress WITHOUT explicit booking intent:
+   - 我很焦慮, 心情不好, 壓力大, 難過, 低落, 很累, 睡不著
+   - User venting or seeking emotional validation
+   - NOT when they explicitly say "找心理師" or "想預約"
+4. "notification" - ONLY for crisis situations (自殺, 想死, 自我傷害, severe distress)
+
+Routing rules:
+- Emotional expressions WITHOUT booking intent → "emotional_support"
+- Looking for therapist/booking → "search_expert"
+- Service/company questions → "main"
+- Crisis keywords → "notification"
 
 IMPORTANT: Consider the conversation context!
 - If previous messages indicate user is in a booking/expert-finding flow, continue routing to "search_expert"
 - Short responses like "好", "可以", "都可以", topic names like "人際關係" are likely follow-ups to the previous flow
 - Only route to "main" if the user is clearly asking a new, unrelated question
 
-Respond with ONLY the agent name: "main", "search_expert", or "notification"`;
+Respond with ONLY the agent name: "main", "search_expert", "emotional_support", or "notification"`;
 
 function getLLM() {
   if (config.llmProvider === 'anthropic') {
@@ -150,6 +162,8 @@ export async function routerNode(
   // Appointment agent is only used when user clicks on expert card (has expertId)
   if (content.includes('search_expert') || content.includes('appointment')) {
     currentAgent = 'search_expert';
+  } else if (content.includes('emotional_support')) {
+    currentAgent = 'emotional_support';
   } else if (content.includes('notification')) {
     currentAgent = 'notification';
     isCrisis = true;

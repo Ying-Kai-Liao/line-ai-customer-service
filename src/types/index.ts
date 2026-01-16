@@ -133,6 +133,17 @@ export interface CrisisEvent {
   created_at?: string;
 }
 
+// Emotional support event tracking
+export interface EmotionalSupportEvent {
+  id?: number;
+  user_id: string;
+  message_content: string;
+  notification_sent: boolean;
+  email_sent: boolean;
+  multicast_sent: boolean;
+  created_at?: string;
+}
+
 // Daily aggregated metrics
 export interface DailyMetrics {
   id?: number;

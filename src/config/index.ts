@@ -28,6 +28,8 @@ export const config = {
   // Notification settings
   notification: {
     emails: process.env.NOTIFICATION_EMAILS || '',
+    // Staff LINE user IDs for multicast notifications (comma-separated)
+    staffLineIds: process.env.NOTIFICATION_STAFF_LINE_IDS || '',
   },
   // Number of previous messages to include in context
   maxHistoryMessages: parseInt(process.env.MAX_HISTORY_MESSAGES || '10', 10),
