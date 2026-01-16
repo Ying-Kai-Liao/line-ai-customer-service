@@ -57,5 +57,3 @@ jobs:
           PINECONE_INDEX_ARTICLES: ${{ vars.PINECONE_INDEX_ARTICLES || 'circle-professional' }}
           PINECONE_INDEX_COMPANY: ${{ vars.PINECONE_INDEX_COMPANY || 'company-files' }}
           MAX_HISTORY_MESSAGES: ${{ vars.MAX_HISTORY_MESSAGES || '10' }}
-          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}

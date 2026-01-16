@@ -45,8 +45,6 @@ export const config = {
   },
   // RAG keyword triggers - when these keywords are detected, route to knowledge agent
   ragKeywords: ['文章', '資料', '最新', '參考', '研究', '相關內容', '知識', '資訊'],
-  // Admin API key for dashboard access
-  adminApiKey: process.env.ADMIN_API_KEY || '',
 };
 
 export function validateConfig(): void {
