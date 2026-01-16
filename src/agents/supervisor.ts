@@ -46,14 +46,18 @@ function getLLM() {
       maxTokens: 50,
     });
   }
-  // gpt-5 models require max_completion_tokens instead of max_tokens
+  // gpt-5 models require max_completion_tokens - omit token limit and let API use defaults
   const isGpt5 = config.openai.model.startsWith('gpt-5');
+  if (isGpt5) {
+    return new ChatOpenAI({
+      apiKey: config.openai.apiKey,
+      model: config.openai.model,
+    });
+  }
   return new ChatOpenAI({
     apiKey: config.openai.apiKey,
     model: config.openai.model,
-    ...(isGpt5
-      ? { modelKwargs: { max_completion_tokens: 50 } }
-      : { maxTokens: 50 }),
+    maxTokens: 50,
   });
 }
 
@@ -143,9 +147,18 @@ export async function routerNode(
       new HumanMessage(`Current user message: ${state.userMessage}`),
     ]);
 
-    content = typeof response.content === 'string'
-      ? response.content.toLowerCase().trim()
-      : '';
+    // Handle both string and array content formats (gpt-5 models may return array)
+    if (typeof response.content === 'string') {
+      content = response.content.toLowerCase().trim();
+    } else if (Array.isArray(response.content)) {
+      content = response.content
+        .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+        .map(part => part.text)
+        .join('')
+        .toLowerCase()
+        .trim();
+    }
+    console.log(`[Router] Response content type: ${typeof response.content}, isArray: ${Array.isArray(response.content)}`);
     console.log(`[Router] LLM response: "${content}"`);
 
     // Log LLM call (non-blocking)

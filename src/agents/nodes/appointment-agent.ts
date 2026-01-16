@@ -33,14 +33,18 @@ function getLLM() {
       maxTokens: 500,
     });
   }
-  // gpt-5 models require max_completion_tokens instead of max_tokens
+  // gpt-5 models require max_completion_tokens - omit token limit and let API use defaults
   const isGpt5 = config.openai.model.startsWith('gpt-5');
+  if (isGpt5) {
+    return new ChatOpenAI({
+      apiKey: config.openai.apiKey,
+      model: config.openai.model,
+    });
+  }
   return new ChatOpenAI({
     apiKey: config.openai.apiKey,
     model: config.openai.model,
-    ...(isGpt5
-      ? { modelKwargs: { max_completion_tokens: 500 } }
-      : { maxTokens: 500 }),
+    maxTokens: 500,
   });
 }
 
