@@ -315,6 +315,161 @@
       color: #666;
     }
 
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 10px;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      background: none;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      color: #666;
+      cursor: pointer;
+      border-radius: 6px 6px 0 0;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      background: #f5f5f5;
+    }
+
+    .tab-btn.active {
+      background: #00C300;
+      color: white;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* LLM Stats */
+    .stat-card.llm .value {
+      color: #1976d2;
+    }
+
+    .stat-card.error .value {
+      color: #c62828;
+    }
+
+    /* Token chart */
+    .agent-chart {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .agent-bar {
+      flex: 1;
+      min-width: 100px;
+      text-align: center;
+    }
+
+    .agent-bar-fill {
+      background: linear-gradient(180deg, #1976d2, #1565c0);
+      border-radius: 4px 4px 0 0;
+      min-height: 4px;
+      margin-bottom: 8px;
+    }
+
+    .agent-bar-label {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .agent-bar-value {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    /* Prompt Editor */
+    .prompt-editor {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .prompt-selector {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .prompt-selector select {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .prompt-textarea {
+      width: 100%;
+      min-height: 300px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      resize: vertical;
+    }
+
+    .prompt-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .prompt-actions button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: #00C300;
+      color: white;
+    }
+
+    .btn-secondary {
+      background: #f5f5f5;
+      color: #666;
+    }
+
+    .btn-danger {
+      background: #ffebee;
+      color: #c62828;
+    }
+
+    .prompt-meta {
+      display: flex;
+      gap: 20px;
+      font-size: 13px;
+      color: #666;
+    }
+
+    /* Badge colors for LLM */
+    .badge-success { background: #e8f5e9; color: #388e3c; }
+    .badge-error { background: #ffebee; color: #c62828; }
+    .badge-router { background: #e3f2fd; color: #1976d2; }
+    .badge-main { background: #e8f5e9; color: #388e3c; }
+    .badge-knowledge { background: #fff3e0; color: #f57c00; }
+    .badge-appointment { background: #fce4ec; color: #c2185b; }
+    .badge-notification { background: #ffebee; color: #c62828; }
+
     @media (max-width: 768px) {
       .config-form input {
         min-width: 100%;
@@ -348,68 +503,187 @@
     <div id="error" class="error" style="display: none;"></div>
 
     <div id="content" style="display: none;">
-      <div class="stats-grid">
-        <div class="stat-card">
-          <h3>Total Messages</h3>
-          <div class="value" id="totalMessages">-</div>
-        </div>
-        <div class="stat-card">
-          <h3>Unique Users</h3>
-          <div class="value" id="uniqueUsers">-</div>
-        </div>
-        <div class="stat-card">
-          <h3>Text Messages</h3>
-          <div class="value" id="textMessages">-</div>
-        </div>
-        <div class="stat-card">
-          <h3>Postbacks</h3>
-          <div class="value" id="postbacks">-</div>
-        </div>
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab-btn active" onclick="showTab('messages')">Messages</button>
+        <button class="tab-btn" onclick="showTab('llm')">LLM Observability</button>
+        <button class="tab-btn" onclick="showTab('prompts')">Prompts</button>
       </div>
 
-      <div class="card">
-        <div class="card-header">
-          <h2>Messages Over Time</h2>
-        </div>
-        <div class="card-body">
-          <div id="chart" class="chart-container"></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h2>Recent Messages</h2>
-        </div>
-        <div class="card-body">
-          <div class="filters">
-            <input type="text" id="filterUserId" placeholder="Filter by User ID">
-            <select id="filterEventType">
-              <option value="">All Events</option>
-              <option value="message">Messages</option>
-              <option value="postback">Postbacks</option>
-              <option value="follow">Follows</option>
-            </select>
-            <button onclick="loadMessages()">Filter</button>
+      <!-- Messages Tab -->
+      <div id="tab-messages" class="tab-content active">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <h3>Total Messages</h3>
+            <div class="value" id="totalMessages">-</div>
           </div>
+          <div class="stat-card">
+            <h3>Unique Users</h3>
+            <div class="value" id="uniqueUsers">-</div>
+          </div>
+          <div class="stat-card">
+            <h3>Text Messages</h3>
+            <div class="value" id="textMessages">-</div>
+          </div>
+          <div class="stat-card">
+            <h3>Postbacks</h3>
+            <div class="value" id="postbacks">-</div>
+          </div>
+        </div>
 
-          <div id="messagesLoading" class="loading">Loading messages...</div>
-          <table id="messagesTable" style="display: none;">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>User ID</th>
-                <th>Type</th>
-                <th>Content</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="messagesBody"></tbody>
-          </table>
+        <div class="card">
+          <div class="card-header">
+            <h2>Messages Over Time</h2>
+          </div>
+          <div class="card-body">
+            <div id="chart" class="chart-container"></div>
+          </div>
+        </div>
 
-          <div class="pagination">
-            <button id="prevPage" onclick="prevPage()" disabled>Previous</button>
-            <span id="pageInfo">Page 1</span>
-            <button id="nextPage" onclick="nextPage()">Next</button>
+        <div class="card">
+          <div class="card-header">
+            <h2>Recent Messages</h2>
+          </div>
+          <div class="card-body">
+            <div class="filters">
+              <input type="text" id="filterUserId" placeholder="Filter by User ID">
+              <select id="filterEventType">
+                <option value="">All Events</option>
+                <option value="message">Messages</option>
+                <option value="postback">Postbacks</option>
+                <option value="follow">Follows</option>
+              </select>
+              <button onclick="loadMessages()">Filter</button>
+            </div>
+
+            <div id="messagesLoading" class="loading">Loading messages...</div>
+            <table id="messagesTable" style="display: none;">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>User ID</th>
+                  <th>Type</th>
+                  <th>Content</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="messagesBody"></tbody>
+            </table>
+
+            <div class="pagination">
+              <button id="prevPage" onclick="prevPage()" disabled>Previous</button>
+              <span id="pageInfo">Page 1</span>
+              <button id="nextPage" onclick="nextPage()">Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LLM Observability Tab -->
+      <div id="tab-llm" class="tab-content">
+        <div class="stats-grid">
+          <div class="stat-card llm">
+            <h3>Total Tokens (7d)</h3>
+            <div class="value" id="llmTotalTokens">-</div>
+          </div>
+          <div class="stat-card llm">
+            <h3>LLM Calls (7d)</h3>
+            <div class="value" id="llmTotalCalls">-</div>
+          </div>
+          <div class="stat-card">
+            <h3>Avg Duration</h3>
+            <div class="value" id="llmAvgDuration">-</div>
+          </div>
+          <div class="stat-card error">
+            <h3>Error Rate</h3>
+            <div class="value" id="llmErrorRate">-</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Token Usage by Agent</h2>
+          </div>
+          <div class="card-body">
+            <div id="agentChart" class="agent-chart"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Recent LLM Calls</h2>
+          </div>
+          <div class="card-body">
+            <div class="filters">
+              <select id="filterAgent">
+                <option value="">All Agents</option>
+                <option value="router">Router</option>
+                <option value="main">Main</option>
+                <option value="knowledge">Knowledge</option>
+                <option value="appointment">Appointment</option>
+                <option value="notification">Notification</option>
+              </select>
+              <select id="filterStatus">
+                <option value="">All Status</option>
+                <option value="success">Success</option>
+                <option value="error">Error</option>
+              </select>
+              <button onclick="loadLLMCalls()">Filter</button>
+            </div>
+
+            <div id="llmCallsLoading" class="loading">Loading LLM calls...</div>
+            <table id="llmCallsTable" style="display: none;">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Agent</th>
+                  <th>Model</th>
+                  <th>Tokens</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="llmCallsBody"></tbody>
+            </table>
+
+            <div class="pagination">
+              <button id="llmPrevPage" onclick="llmPrevPage()" disabled>Previous</button>
+              <span id="llmPageInfo">Page 1</span>
+              <button id="llmNextPage" onclick="llmNextPage()">Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Prompts Tab -->
+      <div id="tab-prompts" class="tab-content">
+        <div class="card">
+          <div class="card-header">
+            <h2>Prompt Editor</h2>
+          </div>
+          <div class="card-body">
+            <div class="prompt-editor">
+              <div class="prompt-selector">
+                <select id="promptSelect" onchange="loadPromptDetails()">
+                  <option value="">Select a prompt...</option>
+                </select>
+                <button class="btn-secondary" onclick="loadPrompts()">Refresh</button>
+              </div>
+
+              <div id="promptMeta" class="prompt-meta" style="display: none;">
+                <span>Version: <strong id="promptVersion">-</strong></span>
+                <span>Updated: <strong id="promptUpdated">-</strong></span>
+              </div>
+
+              <textarea id="promptContent" class="prompt-textarea" placeholder="Select a prompt to edit..."></textarea>
+
+              <div class="prompt-actions">
+                <button class="btn-danger" onclick="revertPrompt()" id="revertBtn" disabled>Revert to Previous</button>
+                <button class="btn-secondary" onclick="resetToDefault()" id="resetBtn" disabled>Reset to Default</button>
+                <button class="btn-primary" onclick="savePrompt()" id="saveBtn" disabled>Save Changes</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -658,6 +932,295 @@
         closeModal();
       }
     });
+
+    // ============================================
+    // Tab Navigation
+    // ============================================
+
+    function showTab(tabName) {
+      // Update tab buttons
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelector(`.tab-btn[onclick="showTab('${tabName}')"]`).classList.add('active');
+
+      // Update tab content
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+
+      // Load data for the tab if needed
+      if (tabName === 'llm') {
+        loadLLMStats();
+        loadLLMCalls();
+      } else if (tabName === 'prompts') {
+        loadPrompts();
+      }
+    }
+
+    // ============================================
+    // LLM Observability Functions
+    // ============================================
+
+    let llmCalls = [];
+    let llmCurrentPage = 0;
+    const llmPageSize = 50;
+
+    async function loadLLMStats() {
+      try {
+        const stats = await fetchAPI('/llm/stats?days=7');
+
+        document.getElementById('llmTotalTokens').textContent = stats.totalTokens.toLocaleString();
+        document.getElementById('llmTotalCalls').textContent = stats.totalCalls.toLocaleString();
+        document.getElementById('llmAvgDuration').textContent = `${stats.avgDurationMs}ms`;
+        document.getElementById('llmErrorRate').textContent = `${(stats.errorRate * 100).toFixed(1)}%`;
+
+        renderAgentChart(stats.byAgent);
+      } catch (error) {
+        console.error('Failed to load LLM stats:', error);
+      }
+    }
+
+    function renderAgentChart(byAgent) {
+      const container = document.getElementById('agentChart');
+      container.innerHTML = '';
+
+      const agents = Object.entries(byAgent);
+      if (agents.length === 0) {
+        container.innerHTML = '<div style="color: #999; text-align: center; width: 100%;">No data available</div>';
+        return;
+      }
+
+      const maxTokens = Math.max(...agents.map(([_, data]) => data.tokens));
+
+      agents.forEach(([agent, data]) => {
+        const bar = document.createElement('div');
+        bar.className = 'agent-bar';
+
+        const height = maxTokens > 0 ? (data.tokens / maxTokens) * 150 : 4;
+
+        bar.innerHTML = `
+          <div class="agent-bar-fill" style="height: ${height}px;"></div>
+          <div class="agent-bar-label">${agent}</div>
+          <div class="agent-bar-value">${data.tokens.toLocaleString()}</div>
+          <div class="agent-bar-label">${data.calls} calls</div>
+        `;
+
+        container.appendChild(bar);
+      });
+    }
+
+    async function loadLLMCalls() {
+      const loading = document.getElementById('llmCallsLoading');
+      const table = document.getElementById('llmCallsTable');
+
+      loading.style.display = 'block';
+      table.style.display = 'none';
+
+      try {
+        const agent = document.getElementById('filterAgent').value;
+        const status = document.getElementById('filterStatus').value;
+        let endpoint = '/llm/calls?limit=500';
+
+        if (agent) endpoint += `&agent=${agent}`;
+        if (status) endpoint += `&status=${status}`;
+
+        const data = await fetchAPI(endpoint);
+        llmCalls = data.data;
+        llmCurrentPage = 0;
+        renderLLMCalls();
+      } catch (error) {
+        showError('Failed to load LLM calls: ' + error.message);
+      } finally {
+        loading.style.display = 'none';
+        table.style.display = 'table';
+      }
+    }
+
+    function renderLLMCalls() {
+      const start = llmCurrentPage * llmPageSize;
+      const end = start + llmPageSize;
+      const pageCalls = llmCalls.slice(start, end);
+
+      const tbody = document.getElementById('llmCallsBody');
+      tbody.innerHTML = '';
+
+      pageCalls.forEach((call, idx) => {
+        const tr = document.createElement('tr');
+
+        const timestamp = new Date(call.created_at).toLocaleString();
+        const statusBadge = call.status === 'success' ? 'badge-success' : 'badge-error';
+        const agentBadge = `badge-${call.agent_type}`;
+
+        tr.innerHTML = `
+          <td class="timestamp">${timestamp}</td>
+          <td><span class="badge ${agentBadge}">${call.agent_type}</span></td>
+          <td>${call.model}</td>
+          <td>${(call.total_tokens || 0).toLocaleString()}</td>
+          <td>${call.duration_ms || 0}ms</td>
+          <td><span class="badge ${statusBadge}">${call.status}</span></td>
+          <td><button onclick="showLLMCallDetails(${start + idx})" style="padding: 4px 8px; font-size: 12px; cursor: pointer;">View</button></td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('llmPageInfo').textContent = `Page ${llmCurrentPage + 1} of ${Math.ceil(llmCalls.length / llmPageSize)}`;
+      document.getElementById('llmPrevPage').disabled = llmCurrentPage === 0;
+      document.getElementById('llmNextPage').disabled = end >= llmCalls.length;
+    }
+
+    function llmPrevPage() {
+      if (llmCurrentPage > 0) {
+        llmCurrentPage--;
+        renderLLMCalls();
+      }
+    }
+
+    function llmNextPage() {
+      const maxPage = Math.ceil(llmCalls.length / llmPageSize) - 1;
+      if (llmCurrentPage < maxPage) {
+        llmCurrentPage++;
+        renderLLMCalls();
+      }
+    }
+
+    function showLLMCallDetails(index) {
+      const call = llmCalls[index];
+      const content = {
+        id: call.id,
+        agent: call.agent_type,
+        model: call.model,
+        provider: call.provider,
+        status: call.status,
+        tokens: {
+          prompt: call.prompt_tokens,
+          completion: call.completion_tokens,
+          total: call.total_tokens,
+        },
+        duration_ms: call.duration_ms,
+        system_prompt: call.system_prompt,
+        input_messages: call.input_messages,
+        output_content: call.output_content,
+        error_message: call.error_message,
+        created_at: call.created_at,
+      };
+
+      document.getElementById('modalContent').textContent = JSON.stringify(content, null, 2);
+      document.getElementById('modal').classList.add('active');
+    }
+
+    // ============================================
+    // Prompt Management Functions
+    // ============================================
+
+    let prompts = [];
+    let currentPrompt = null;
+    let defaultPromptContent = null;
+
+    async function loadPrompts() {
+      try {
+        const data = await fetchAPI('/prompts');
+        prompts = data.data;
+
+        const select = document.getElementById('promptSelect');
+        select.innerHTML = '<option value="">Select a prompt...</option>';
+
+        prompts.forEach(p => {
+          const option = document.createElement('option');
+          option.value = p.name;
+          option.textContent = `${p.display_name} (${p.name})`;
+          select.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Failed to load prompts:', error);
+      }
+    }
+
+    async function loadPromptDetails() {
+      const name = document.getElementById('promptSelect').value;
+
+      if (!name) {
+        document.getElementById('promptContent').value = '';
+        document.getElementById('promptMeta').style.display = 'none';
+        document.getElementById('saveBtn').disabled = true;
+        document.getElementById('revertBtn').disabled = true;
+        document.getElementById('resetBtn').disabled = true;
+        currentPrompt = null;
+        return;
+      }
+
+      try {
+        const prompt = await fetchAPI(`/prompts/${name}`);
+        currentPrompt = prompt;
+        defaultPromptContent = prompt.default_content;
+
+        document.getElementById('promptContent').value = prompt.content;
+        document.getElementById('promptVersion').textContent = prompt.version;
+        document.getElementById('promptUpdated').textContent = new Date(prompt.updated_at).toLocaleString();
+        document.getElementById('promptMeta').style.display = 'flex';
+
+        document.getElementById('saveBtn').disabled = false;
+        document.getElementById('revertBtn').disabled = !prompt.previous_content;
+        document.getElementById('resetBtn').disabled = false;
+      } catch (error) {
+        showError('Failed to load prompt: ' + error.message);
+      }
+    }
+
+    async function savePrompt() {
+      if (!currentPrompt) return;
+
+      const content = document.getElementById('promptContent').value;
+
+      try {
+        await fetchAPIWithBody('PUT', `/prompts/${currentPrompt.name}`, { content });
+        alert('Prompt saved successfully! Changes will take effect within 5 minutes (cache TTL).');
+        loadPromptDetails();
+      } catch (error) {
+        showError('Failed to save prompt: ' + error.message);
+      }
+    }
+
+    async function revertPrompt() {
+      if (!currentPrompt) return;
+
+      if (!confirm('Are you sure you want to revert to the previous version?')) return;
+
+      try {
+        await fetchAPIWithBody('POST', `/prompts/${currentPrompt.name}/revert`, {});
+        alert('Prompt reverted successfully!');
+        loadPromptDetails();
+      } catch (error) {
+        showError('Failed to revert prompt: ' + error.message);
+      }
+    }
+
+    function resetToDefault() {
+      if (!defaultPromptContent) return;
+
+      if (!confirm('Are you sure you want to reset to the default prompt?')) return;
+
+      document.getElementById('promptContent').value = defaultPromptContent;
+    }
+
+    async function fetchAPIWithBody(method, endpoint, body) {
+      const response = await fetch(`${apiUrl}/admin${endpoint}`, {
+        method,
+        headers: {
+          'X-Admin-Key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Invalid API key');
+        }
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+
+      return response.json();
+    }
   </script>
 </body>
 </html>
