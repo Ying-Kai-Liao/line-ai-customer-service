@@ -5,6 +5,7 @@ import { config } from '../../config';
 import type { GraphStateType } from '../state';
 import { getAvailableSlots } from '../../tools/expert-api';
 import { createTimeSlotsFlexMessage } from '../../tools/line-flex';
+import { trackExpertInteraction } from '../../services/analytics.service';
 
 const APPOINTMENT_AGENT_PROMPT = `You are a helpful appointment booking assistant for CircleWe (圈圈), a mental health and wellness platform.
 
@@ -43,6 +44,15 @@ export async function appointmentAgentNode(
   // If we have an expertId (from postback), fetch available slots
   if (state.expertId) {
     const slots = await getAvailableSlots(state.expertId);
+
+    // Track expert selection (user clicked on expert card to view slots)
+    trackExpertInteraction({
+      user_id: state.userId,
+      action: 'select',
+      expert_id: state.expertId,
+      expert_name: slots?.name,
+      results_count: slots?.results.length || 0,
+    }).catch(() => {});
 
     if (slots && slots.results.length > 0) {
       const flexMessage = createTimeSlotsFlexMessage(slots);

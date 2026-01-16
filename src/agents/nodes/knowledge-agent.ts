@@ -4,6 +4,7 @@ import { HumanMessage, SystemMessage, AIMessage, BaseMessage } from '@langchain/
 import { config } from '../../config';
 import type { GraphStateType } from '../state';
 import { queryVectorStore, determineIndex, type RAGResult } from '../../services/rag.service';
+import { trackRagQuery } from '../../services/analytics.service';
 
 /**
  * Get LLM instance based on config
@@ -91,6 +92,16 @@ export async function knowledgeAgentNode(
     indexName,
     topK: 3,
   });
+
+  // Track RAG query (non-blocking)
+  trackRagQuery({
+    user_id: state.userId,
+    query: state.userMessage,
+    index_name: indexName,
+    results_count: results.length,
+    top_score: results.length > 0 ? results[0].metadata.score : undefined,
+    sources: results.map(r => r.metadata.source),
+  }).catch(() => {});
 
   // If no results, fallback to main agent behavior
   if (results.length === 0) {

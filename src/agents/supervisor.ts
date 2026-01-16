@@ -3,7 +3,8 @@ import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { config } from '../config';
 import type { GraphStateType, AgentType } from './state';
-import { hasRAGKeywords } from '../services/rag.service';
+import { getRAGKeywords } from '../services/rag.service';
+import { trackAgentRouting } from '../services/analytics.service';
 
 const ROUTER_PROMPT = `You are a customer service router. Analyze the user's message and determine which specialized agent should handle it.
 
@@ -37,21 +38,54 @@ function getLLM() {
 export async function routerNode(
   state: GraphStateType
 ): Promise<Partial<GraphStateType>> {
+  let currentAgent: AgentType = 'main';
+  let isCrisis = false;
+  let routingReason: 'keyword' | 'llm_decision' | 'postback' = 'llm_decision';
+  let keywordsMatched: string[] = [];
+
   // If expertId is present, this is a postback for booking - route directly to appointment
   if (state.expertId) {
     console.log(`Router: Direct routing to appointment for expertId: ${state.expertId}`);
+    currentAgent = 'appointment';
+    routingReason = 'postback';
+
+    // Track routing decision (non-blocking)
+    trackAgentRouting({
+      user_message: state.userMessage,
+      routed_to: currentAgent,
+      routing_reason: routingReason,
+      keywords_matched: [`expertId:${state.expertId}`],
+    }).catch(() => {});
+
     return {
-      currentAgent: 'appointment' as AgentType,
+      currentAgent,
       isCrisis: false,
+      routingReason,
+      keywordsMatched: [`expertId:${state.expertId}`],
     };
   }
 
   // Check for RAG keywords - route to knowledge agent for document retrieval
-  if (hasRAGKeywords(state.userMessage)) {
+  const ragKeywords = getRAGKeywords(state.userMessage);
+  if (ragKeywords.length > 0) {
     console.log(`Router: RAG keyword detected, routing to knowledge agent for: "${state.userMessage.substring(0, 50)}..."`);
+    currentAgent = 'knowledge';
+    routingReason = 'keyword';
+    keywordsMatched = ragKeywords;
+
+    // Track routing decision (non-blocking)
+    trackAgentRouting({
+      user_message: state.userMessage,
+      routed_to: currentAgent,
+      routing_reason: routingReason,
+      keywords_matched: keywordsMatched,
+    }).catch(() => {});
+
     return {
-      currentAgent: 'knowledge' as AgentType,
+      currentAgent,
       isCrisis: false,
+      routingReason,
+      keywordsMatched,
     };
   }
 
@@ -67,9 +101,6 @@ export async function routerNode(
     : '';
 
   // Parse the agent type from response
-  let currentAgent: AgentType = 'main';
-  let isCrisis = false;
-
   // Route to search_expert for booking/appointment queries (shows expert carousel)
   // Appointment agent is only used when user clicks on expert card (has expertId)
   if (content.includes('search_expert') || content.includes('appointment')) {
@@ -81,9 +112,17 @@ export async function routerNode(
 
   console.log(`Router decision: ${currentAgent} for message: "${state.userMessage.substring(0, 50)}..."`);
 
+  // Track routing decision (non-blocking)
+  trackAgentRouting({
+    user_message: state.userMessage,
+    routed_to: currentAgent,
+    routing_reason: routingReason,
+  }).catch(() => {});
+
   return {
     currentAgent,
     isCrisis,
+    routingReason,
   };
 }
 

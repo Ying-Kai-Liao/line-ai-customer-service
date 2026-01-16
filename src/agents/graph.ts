@@ -8,6 +8,11 @@ import {
   notificationAgentNode,
   knowledgeAgentNode,
 } from './nodes';
+import {
+  getOrCreateConversation,
+  trackMessage,
+  updateConversationAgent,
+} from '../services/analytics.service';
 
 // Build the customer service agent graph
 function buildGraph() {
@@ -52,11 +57,13 @@ export function getGraph() {
 }
 
 import type { FlexMessage } from '@line/bot-sdk';
+import type { AgentType } from './state';
 
 // Response type from processMessage
 export interface ProcessMessageResult {
   response: string;
   flexMessage?: FlexMessage;
+  currentAgent?: AgentType;
 }
 
 // Main function to process a message through the graph
@@ -66,7 +73,11 @@ export async function processMessage(
   conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [],
   expertId?: number
 ): Promise<ProcessMessageResult> {
+  const startTime = Date.now();
   const graph = getGraph();
+
+  // Get or create conversation for analytics (non-blocking)
+  const conversationId = await getOrCreateConversation(userId).catch(() => null);
 
   // Convert conversation history to LangChain messages
   const { HumanMessage, AIMessage } = await import('@langchain/core/messages');
@@ -76,19 +87,54 @@ export async function processMessage(
       : new AIMessage(msg.content)
   );
 
-  // Initial state
+  // Initial state with analytics tracking
   const initialState: Partial<GraphStateType> = {
     userMessage,
     userId,
     messages,
     expertId,
+    conversationId: conversationId || undefined,
+    startTime,
   };
 
   // Run the graph
   const result = await graph.invoke(initialState);
 
+  const responseTime = Date.now() - startTime;
+
+  // Track analytics (non-blocking)
+  Promise.all([
+    // Track user message
+    trackMessage({
+      conversation_id: conversationId || undefined,
+      user_id: userId,
+      role: 'user',
+      content: userMessage,
+      message_type: 'text',
+      timestamp: startTime,
+    }),
+    // Track assistant response
+    trackMessage({
+      conversation_id: conversationId || undefined,
+      user_id: userId,
+      role: 'assistant',
+      content: result.response || '',
+      message_type: result.flexMessage ? 'flex' : 'text',
+      agent_type: result.currentAgent,
+      response_time_ms: responseTime,
+      timestamp: Date.now(),
+    }),
+    // Update conversation with agent used
+    conversationId && result.currentAgent
+      ? updateConversationAgent(conversationId, result.currentAgent)
+      : Promise.resolve(),
+  ]).catch((error) => {
+    console.error('[Analytics] Error tracking message:', error);
+  });
+
   return {
     response: result.response || 'I apologize, but I was unable to process your request. Please try again.',
     flexMessage: result.flexMessage,
+    currentAgent: result.currentAgent as AgentType,
   };
 }

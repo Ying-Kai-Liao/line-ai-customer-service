@@ -39,6 +39,12 @@ export const GraphState = Annotation.Root({
     reducer: (current, update) => ({ ...current, ...update }),
     default: () => ({}),
   }),
+
+  // Analytics tracking
+  conversationId: Annotation<number>,
+  startTime: Annotation<number>,
+  routingReason: Annotation<'keyword' | 'llm_decision' | 'postback'>,
+  keywordsMatched: Annotation<string[]>,
 });
 
 // Type for the graph state

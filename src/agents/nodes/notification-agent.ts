@@ -3,6 +3,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import { config } from '../../config';
 import type { GraphStateType } from '../state';
+import { trackCrisisEvent, markConversationCrisis } from '../../services/analytics.service';
 
 const NOTIFICATION_AGENT_PROMPT = `You are a crisis support assistant for CircleWe (圈圈). A user is in distress and may need immediate support.
 
@@ -41,6 +42,9 @@ function getLLM() {
   });
 }
 
+// Crisis detection keywords for tracking
+const CRISIS_KEYWORDS = ['自殺', '想死', '不想活', '結束生命', '自我傷害', 'suicide', 'kill myself', 'end my life'];
+
 export async function notificationAgentNode(
   state: GraphStateType
 ): Promise<Partial<GraphStateType>> {
@@ -62,6 +66,22 @@ export async function notificationAgentNode(
   if (config.notification.emails) {
     console.log(`[CRISIS ALERT] Would notify: ${config.notification.emails}`);
   }
+
+  // Detect which crisis keywords were matched
+  const lowerMsg = state.userMessage.toLowerCase();
+  const matchedKeywords = CRISIS_KEYWORDS.filter(k => lowerMsg.includes(k.toLowerCase()));
+
+  // Track crisis event (non-blocking)
+  Promise.all([
+    trackCrisisEvent({
+      user_id: state.userId,
+      message_content: state.userMessage,
+      detection_keywords: matchedKeywords,
+      response_sent: true,
+      notification_sent: Boolean(config.notification.emails),
+    }),
+    state.conversationId ? markConversationCrisis(state.conversationId) : Promise.resolve(),
+  ]).catch(() => {});
 
   return {
     response: content,
