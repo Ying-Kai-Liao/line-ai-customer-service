@@ -6,17 +6,21 @@ import type { GraphStateType, AgentType } from './state';
 import { getRAGKeywords } from '../services/rag.service';
 import { trackAgentRouting } from '../services/analytics.service';
 
-const ROUTER_PROMPT = `You are a customer service router. Analyze the user's message and determine which specialized agent should handle it.
+const ROUTER_PROMPT = `You are a customer service router for CircleWe (圈圈), a mental health platform. Analyze the conversation and determine which agent should handle the user's latest message.
 
 Available agents:
 1. "main" - General customer service queries, FAQs, company information, mental health knowledge
-2. "search_expert" - Use this when user wants to book, make appointment, find therapist, or needs expert recommendations. This shows available experts.
-3. "notification" - ONLY for crisis situations (self-harm, suicide, severe distress) that require immediate human attention
+2. "search_expert" - Finding therapists, booking appointments, expert recommendations. Use this when:
+   - User wants to book/make appointment (預約, booking)
+   - User is looking for a therapist (找心理師, 找專家)
+   - User mentions a topic they need help with (人際關係, 焦慮, 憂鬱, etc.) in context of seeking professional help
+   - User is responding to questions about their needs/preferences for expert matching
+3. "notification" - ONLY for crisis situations (self-harm, suicide, severe distress)
 
-IMPORTANT routing rules:
-- "我想預約", "預約", "booking", "找心理師", "推薦專家" → route to "search_expert"
-- Only route to "notification" if user expresses suicidal thoughts, self-harm, or severe crisis
-- General questions about the service → route to "main"
+IMPORTANT: Consider the conversation context!
+- If previous messages indicate user is in a booking/expert-finding flow, continue routing to "search_expert"
+- Short responses like "好", "可以", "都可以", topic names like "人際關係" are likely follow-ups to the previous flow
+- Only route to "main" if the user is clearly asking a new, unrelated question
 
 Respond with ONLY the agent name: "main", "search_expert", or "notification"`;
 
@@ -91,9 +95,20 @@ export async function routerNode(
 
   const llm = getLLM();
 
+  // Build conversation context for better routing decisions
+  const recentMessages = state.messages.slice(-6); // Last 3 exchanges
+  let conversationContext = '';
+  if (recentMessages.length > 0) {
+    conversationContext = '\n\nRecent conversation:\n' + recentMessages.map(msg => {
+      const role = msg._getType() === 'human' ? 'User' : 'Assistant';
+      const content = typeof msg.content === 'string' ? msg.content : '';
+      return `${role}: ${content.substring(0, 200)}`;
+    }).join('\n');
+  }
+
   const response = await llm.invoke([
-    new SystemMessage(ROUTER_PROMPT),
-    new HumanMessage(state.userMessage),
+    new SystemMessage(ROUTER_PROMPT + conversationContext),
+    new HumanMessage(`Current user message: ${state.userMessage}`),
   ]);
 
   const content = typeof response.content === 'string'
