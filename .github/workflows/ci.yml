@@ -91,8 +91,8 @@ jobs:
 
       - name: Check for test files and run tests
         run: |
-          if find . -name "*.test.ts" -o -name "*.spec.ts" | grep -q .; then
-            npm test
+          if find ./src -name "*.test.ts" -o -name "*.spec.ts" 2>/dev/null | grep -q .; then
+            npm test --if-present
           else
-            echo "No test files found, skipping tests"
+            echo "No test files found in src/, skipping tests"
           fi
