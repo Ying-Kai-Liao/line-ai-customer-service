@@ -3,7 +3,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { config } from '../config';
 import type { GraphStateType, AgentType } from './state';
-import { hasRAGKeywords, getRAGKeywords } from '../services/rag.service';
+import { getRAGKeywords } from '../services/rag.service';
 import { trackAgentRouting } from '../services/analytics.service';
 
 const ROUTER_PROMPT = `You are a customer service router. Analyze the user's message and determine which specialized agent should handle it.
