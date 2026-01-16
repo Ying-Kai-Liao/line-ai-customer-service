@@ -470,6 +470,36 @@
     .badge-appointment { background: #fce4ec; color: #c2185b; }
     .badge-notification { background: #ffebee; color: #c62828; }
 
+    /* Play triangle button */
+    .btn-play {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: none;
+      background: #00C300;
+      cursor: pointer;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .btn-play:hover {
+      background: #00B900;
+      transform: scale(1.1);
+    }
+
+    .btn-play::before {
+      content: '';
+      width: 0;
+      height: 0;
+      border-left: 8px solid white;
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
+      margin-left: 2px;
+    }
+
     @media (max-width: 768px) {
       .config-form input {
         min-width: 100%;
@@ -842,7 +872,7 @@
           <td class="user-id">${msg.user_id.substring(0, 16)}...</td>
           <td><span class="badge ${badgeClass}">${msg.event_type}</span></td>
           <td class="message-preview">${escapeHtml(content)}</td>
-          <td><button onclick="showRawEvent(${start + idx})" style="padding: 4px 8px; font-size: 12px; cursor: pointer;">View</button></td>
+          <td><button class="btn-play" onclick="showRawEvent(${start + idx})" title="View details"></button></td>
         `;
 
         tbody.appendChild(tr);
@@ -1063,7 +1093,7 @@
           <td>${(call.total_tokens || 0).toLocaleString()}</td>
           <td>${call.duration_ms || 0}ms</td>
           <td><span class="badge ${statusBadge}">${call.status}</span></td>
-          <td><button onclick="showLLMCallDetails(${start + idx})" style="padding: 4px 8px; font-size: 12px; cursor: pointer;">View</button></td>
+          <td><button class="btn-play" onclick="showLLMCallDetails(${start + idx})" title="View details"></button></td>
         `;
 
         tbody.appendChild(tr);
