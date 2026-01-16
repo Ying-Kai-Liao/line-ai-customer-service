@@ -3,7 +3,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import { config } from '../../config';
 import type { GraphStateType } from '../state';
-import { trackCrisisEvent, markConversationCrisis } from '../../services/analytics.service';
+import { trackCrisisEvent } from '../../services/analytics.service';
 
 const NOTIFICATION_AGENT_PROMPT = `You are a crisis support assistant for CircleWe (圈圈). A user is in distress and may need immediate support.
 
@@ -72,16 +72,13 @@ export async function notificationAgentNode(
   const matchedKeywords = CRISIS_KEYWORDS.filter(k => lowerMsg.includes(k.toLowerCase()));
 
   // Track crisis event (non-blocking)
-  Promise.all([
-    trackCrisisEvent({
-      user_id: state.userId,
-      message_content: state.userMessage,
-      detection_keywords: matchedKeywords,
-      response_sent: true,
-      notification_sent: Boolean(config.notification.emails),
-    }),
-    state.conversationId ? markConversationCrisis(state.conversationId) : Promise.resolve(),
-  ]).catch(() => {});
+  trackCrisisEvent({
+    user_id: state.userId,
+    message_content: state.userMessage,
+    detection_keywords: matchedKeywords,
+    response_sent: true,
+    notification_sent: Boolean(config.notification.emails),
+  }).catch(() => {});
 
   return {
     response: content,

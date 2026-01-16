@@ -76,9 +76,6 @@ export async function processMessage(
   const startTime = Date.now();
   const graph = getGraph();
 
-  // Get or create conversation for analytics (non-blocking)
-  const conversationId = await getOrCreateConversation(userId).catch(() => null);
-
   // Convert conversation history to LangChain messages
   const { HumanMessage, AIMessage } = await import('@langchain/core/messages');
   const messages = conversationHistory.map((msg) =>
@@ -87,13 +84,12 @@ export async function processMessage(
       : new AIMessage(msg.content)
   );
 
-  // Initial state with analytics tracking
+  // Initial state
   const initialState: Partial<GraphStateType> = {
     userMessage,
     userId,
     messages,
     expertId,
-    conversationId: conversationId || undefined,
     startTime,
   };
 
@@ -102,34 +98,38 @@ export async function processMessage(
 
   const responseTime = Date.now() - startTime;
 
-  // Track analytics (non-blocking)
-  Promise.all([
-    // Track user message
-    trackMessage({
-      conversation_id: conversationId || undefined,
-      user_id: userId,
-      role: 'user',
-      content: userMessage,
-      message_type: 'text',
-      timestamp: startTime,
-    }),
-    // Track assistant response
-    trackMessage({
-      conversation_id: conversationId || undefined,
-      user_id: userId,
-      role: 'assistant',
-      content: result.response || '',
-      message_type: result.flexMessage ? 'flex' : 'text',
-      agent_type: result.currentAgent,
-      response_time_ms: responseTime,
-      timestamp: Date.now(),
-    }),
-    // Update conversation with agent used
-    conversationId && result.currentAgent
-      ? updateConversationAgent(conversationId, result.currentAgent)
-      : Promise.resolve(),
-  ]).catch((error) => {
-    console.error('[Analytics] Error tracking message:', error);
+  // Track analytics completely in background (fire-and-forget)
+  // Don't let analytics affect the main response flow
+  setImmediate(async () => {
+    try {
+      const conversationId = await getOrCreateConversation(userId).catch(() => null);
+
+      await Promise.all([
+        trackMessage({
+          conversation_id: conversationId || undefined,
+          user_id: userId,
+          role: 'user',
+          content: userMessage,
+          message_type: 'text',
+          timestamp: startTime,
+        }),
+        trackMessage({
+          conversation_id: conversationId || undefined,
+          user_id: userId,
+          role: 'assistant',
+          content: result.response || '',
+          message_type: result.flexMessage ? 'flex' : 'text',
+          agent_type: result.currentAgent,
+          response_time_ms: responseTime,
+          timestamp: Date.now(),
+        }),
+        conversationId && result.currentAgent
+          ? updateConversationAgent(conversationId, result.currentAgent)
+          : Promise.resolve(),
+      ]);
+    } catch (error) {
+      console.error('[Analytics] Error tracking message:', error);
+    }
   });
 
   return {
