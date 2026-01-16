@@ -9,7 +9,7 @@ export const config = {
   },
   openai: {
     apiKey: process.env.OPENAI_API_KEY || '',
-    model: process.env.OPENAI_MODEL || 'gpt-4',
+    model: process.env.OPENAI_MODEL || 'gpt-5-mini',
   },
   // LLM provider: 'anthropic' or 'openai'
   llmProvider: (process.env.LLM_PROVIDER || 'anthropic') as 'anthropic' | 'openai',
