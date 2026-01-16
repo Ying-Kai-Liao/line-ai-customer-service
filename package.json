@@ -5,7 +5,7 @@
   "main": "dist/handler.js",
   "scripts": {
     "dev": "esbuild src/local.ts --bundle --platform=node --target=node18 --outfile=dist/local.js && node --env-file=.env dist/local.js",
-    "build": "esbuild src/handler.ts --bundle --platform=node --target=node18 --outdir=dist --external:@aws-sdk/*",
+    "build": "esbuild src/handler.ts src/admin.ts --bundle --platform=node --target=node18 --outdir=dist --external:@aws-sdk/*",
     "deploy": "npm run build && serverless deploy",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
