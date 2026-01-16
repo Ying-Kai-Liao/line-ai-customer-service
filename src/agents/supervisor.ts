@@ -108,6 +108,7 @@ export async function routerNode(
   }
 
   const llm = getLLM();
+  console.log(`[Router] Processing message for user ${state.userId}: "${state.userMessage.substring(0, 50)}..."`);
 
   // Build conversation context for better routing decisions
   const recentMessages = state.messages.slice(-6); // Last 3 exchanges
@@ -130,32 +131,56 @@ export async function routerNode(
     { role: 'user', content: `Current user message: ${state.userMessage}` },
   ];
 
-  const response = await llm.invoke([
-    new SystemMessage(fullPrompt),
-    new HumanMessage(`Current user message: ${state.userMessage}`),
-  ]);
+  let content = '';
+  try {
+    console.log(`[Router] Calling LLM for routing decision...`);
+    const response = await llm.invoke([
+      new SystemMessage(fullPrompt),
+      new HumanMessage(`Current user message: ${state.userMessage}`),
+    ]);
 
-  const content = typeof response.content === 'string'
-    ? response.content.toLowerCase().trim()
-    : '';
+    content = typeof response.content === 'string'
+      ? response.content.toLowerCase().trim()
+      : '';
+    console.log(`[Router] LLM response: "${content}"`);
 
-  // Log LLM call (non-blocking)
-  const durationMs = Date.now() - startTime;
-  setImmediate(() => {
-    logLLMCall({
-      user_id: state.userId,
-      agent_type: 'router',
-      model: config.llmProvider === 'anthropic' ? config.anthropic.model : config.openai.model,
-      provider: config.llmProvider,
-      system_prompt: fullPrompt,
-      input_messages: inputMessages,
-      output_content: content,
-      prompt_tokens: (response as { usage_metadata?: { input_tokens?: number } }).usage_metadata?.input_tokens,
-      completion_tokens: (response as { usage_metadata?: { output_tokens?: number } }).usage_metadata?.output_tokens,
-      duration_ms: durationMs,
-      status: 'success',
-    }).catch(() => {});
-  });
+    // Log LLM call (non-blocking)
+    const durationMs = Date.now() - startTime;
+    setImmediate(() => {
+      logLLMCall({
+        user_id: state.userId,
+        agent_type: 'router',
+        model: config.llmProvider === 'anthropic' ? config.anthropic.model : config.openai.model,
+        provider: config.llmProvider,
+        system_prompt: fullPrompt,
+        input_messages: inputMessages,
+        output_content: content,
+        prompt_tokens: (response as { usage_metadata?: { input_tokens?: number } }).usage_metadata?.input_tokens,
+        completion_tokens: (response as { usage_metadata?: { output_tokens?: number } }).usage_metadata?.output_tokens,
+        duration_ms: durationMs,
+        status: 'success',
+      }).catch(() => {});
+    });
+  } catch (error) {
+    console.error(`[Router] LLM call failed:`, error);
+    // Log the error
+    const durationMs = Date.now() - startTime;
+    setImmediate(() => {
+      logLLMCall({
+        user_id: state.userId,
+        agent_type: 'router',
+        model: config.llmProvider === 'anthropic' ? config.anthropic.model : config.openai.model,
+        provider: config.llmProvider,
+        system_prompt: fullPrompt,
+        input_messages: inputMessages,
+        duration_ms: durationMs,
+        status: 'error',
+        error_message: error instanceof Error ? error.message : String(error),
+      }).catch(() => {});
+    });
+    // Default to main agent on error
+    content = 'main';
+  }
 
   // Parse the agent type from response
   // Route to search_expert for booking/appointment queries (shows expert carousel)

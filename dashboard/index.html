@@ -833,7 +833,7 @@
       pageMessages.forEach((msg, idx) => {
         const tr = document.createElement('tr');
 
-        const timestamp = new Date(msg.timestamp).toLocaleString();
+        const timestamp = formatTimestamp(msg.timestamp);
         const content = getMessageContent(msg);
         const badgeClass = getBadgeClass(msg.event_type);
 
@@ -887,6 +887,13 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    function formatTimestamp(ts) {
+      if (!ts) return '-';
+      const date = new Date(ts);
+      if (isNaN(date.getTime())) return '-';
+      return date.toLocaleString();
     }
 
     function prevPage() {
@@ -1045,7 +1052,7 @@
       pageCalls.forEach((call, idx) => {
         const tr = document.createElement('tr');
 
-        const timestamp = new Date(call.created_at).toLocaleString();
+        const timestamp = formatTimestamp(call.created_at);
         const statusBadge = call.status === 'success' ? 'badge-success' : 'badge-error';
         const agentBadge = `badge-${call.agent_type}`;
 
@@ -1154,7 +1161,7 @@
 
         document.getElementById('promptContent').value = prompt.content;
         document.getElementById('promptVersion').textContent = prompt.version;
-        document.getElementById('promptUpdated').textContent = new Date(prompt.updated_at).toLocaleString();
+        document.getElementById('promptUpdated').textContent = formatTimestamp(prompt.updated_at);
         document.getElementById('promptMeta').style.display = 'flex';
 
         document.getElementById('saveBtn').disabled = false;
