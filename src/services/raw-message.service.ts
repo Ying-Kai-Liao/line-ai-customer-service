@@ -7,12 +7,68 @@ import type { RawMessage } from '../types';
 const localStore: RawMessage[] = [];
 const isLocalMode = process.env.USE_LOCAL_STORAGE === 'true';
 
+// Circuit breaker state - skip DB operations if too many failures
+let consecutiveFailures = 0;
+let circuitOpenUntil = 0;
+const MAX_FAILURES = 3;
+const CIRCUIT_RESET_MS = 60 * 1000; // 1 minute
+
 /**
- * Get Neon SQL client
+ * Check if Neon is properly configured
+ */
+function isNeonConfigured(): boolean {
+  return Boolean(config.neon.connectionString);
+}
+
+/**
+ * Check if circuit breaker is open (should skip DB operations)
+ */
+function isCircuitOpen(): boolean {
+  if (Date.now() < circuitOpenUntil) {
+    return true;
+  }
+  // Reset circuit if timeout passed
+  if (circuitOpenUntil > 0 && Date.now() >= circuitOpenUntil) {
+    circuitOpenUntil = 0;
+    consecutiveFailures = 0;
+  }
+  return false;
+}
+
+/**
+ * Record a failure and potentially open circuit
+ */
+function recordFailure(): void {
+  consecutiveFailures++;
+  if (consecutiveFailures >= MAX_FAILURES) {
+    circuitOpenUntil = Date.now() + CIRCUIT_RESET_MS;
+    console.warn(`[RawMessage] Circuit breaker opened - skipping DB for ${CIRCUIT_RESET_MS / 1000}s`);
+  }
+}
+
+/**
+ * Record a success and reset failure count
+ */
+function recordSuccess(): void {
+  consecutiveFailures = 0;
+}
+
+/**
+ * Wrap a promise with a timeout
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Operation timed out')), ms)
+  );
+  return Promise.race([promise, timeout]);
+}
+
+/**
+ * Get Neon SQL client (only if configured)
  */
 function getSql() {
-  if (!config.neon.connectionString) {
-    throw new Error('NEON_DATABASE_URL is required');
+  if (!isNeonConfigured()) {
+    return null;
   }
   return neon(config.neon.connectionString);
 }
@@ -50,6 +106,7 @@ function getUserIdFromEvent(event: WebhookEvent): string {
 
 /**
  * Store a raw LINE webhook event in Neon
+ * This is non-blocking and will not affect the main message flow
  */
 export async function storeRawMessage(event: WebhookEvent): Promise<void> {
   const messageId = getMessageId(event);
@@ -65,23 +122,44 @@ export async function storeRawMessage(event: WebhookEvent): Promise<void> {
     received_at: new Date().toISOString(),
   };
 
+  // Local mode: store in memory
   if (isLocalMode) {
     localStore.push(rawMessage as RawMessage);
     console.log(`[RawMessage] Stored locally: ${messageId} for user ${userId}`);
     return;
   }
 
+  // Check if Neon is configured
+  if (!isNeonConfigured()) {
+    console.log('[RawMessage] Neon not configured, skipping storage');
+    return;
+  }
+
+  // Check circuit breaker
+  if (isCircuitOpen()) {
+    console.log('[RawMessage] Circuit breaker open, skipping storage');
+    return;
+  }
+
   try {
     const sql = getSql();
-    await sql`
-      INSERT INTO raw_messages (message_id, user_id, event_type, source_type, raw_event, timestamp, received_at)
-      VALUES (${rawMessage.message_id}, ${rawMessage.user_id}, ${rawMessage.event_type}, ${rawMessage.source_type}, ${JSON.stringify(rawMessage.raw_event)}, ${rawMessage.timestamp}, ${rawMessage.received_at})
-      ON CONFLICT (message_id) DO NOTHING
-    `;
+    if (!sql) return;
 
+    // Use timeout to prevent long waits (3 seconds max)
+    await withTimeout(
+      sql`
+        INSERT INTO raw_messages (message_id, user_id, event_type, source_type, raw_event, timestamp, received_at)
+        VALUES (${rawMessage.message_id}, ${rawMessage.user_id}, ${rawMessage.event_type}, ${rawMessage.source_type}, ${JSON.stringify(rawMessage.raw_event)}, ${rawMessage.timestamp}, ${rawMessage.received_at})
+        ON CONFLICT (message_id) DO NOTHING
+      `,
+      3000
+    );
+
+    recordSuccess();
     console.log(`[RawMessage] Stored: ${messageId} for user ${userId}`);
   } catch (error) {
-    console.error('[RawMessage] Error storing raw message:', error);
+    recordFailure();
+    console.error('[RawMessage] Error storing raw message:', error instanceof Error ? error.message : error);
     // Don't throw - raw message storage should not block message processing
   }
 }
@@ -106,33 +184,40 @@ export async function getRawMessagesByUser(
     return messages.slice(0, limit);
   }
 
+  if (!isNeonConfigured()) {
+    console.log('[RawMessage] Neon not configured');
+    return [];
+  }
+
   try {
     const sql = getSql();
-    let rows;
+    if (!sql) return [];
+
+    let queryPromise;
 
     if (startTime && endTime) {
-      rows = await sql`
+      queryPromise = sql`
         SELECT * FROM raw_messages
         WHERE user_id = ${userId} AND timestamp >= ${startTime} AND timestamp <= ${endTime}
         ORDER BY timestamp DESC
         LIMIT ${limit}
       `;
     } else if (startTime) {
-      rows = await sql`
+      queryPromise = sql`
         SELECT * FROM raw_messages
         WHERE user_id = ${userId} AND timestamp >= ${startTime}
         ORDER BY timestamp DESC
         LIMIT ${limit}
       `;
     } else if (endTime) {
-      rows = await sql`
+      queryPromise = sql`
         SELECT * FROM raw_messages
         WHERE user_id = ${userId} AND timestamp <= ${endTime}
         ORDER BY timestamp DESC
         LIMIT ${limit}
       `;
     } else {
-      rows = await sql`
+      queryPromise = sql`
         SELECT * FROM raw_messages
         WHERE user_id = ${userId}
         ORDER BY timestamp DESC
@@ -140,9 +225,10 @@ export async function getRawMessagesByUser(
       `;
     }
 
+    const rows = await withTimeout(queryPromise, 5000);
     return rows as RawMessage[];
   } catch (error) {
-    console.error('[RawMessage] Error querying raw messages:', error);
+    console.error('[RawMessage] Error querying raw messages:', error instanceof Error ? error.message : error);
     return [];
   }
 }
@@ -158,17 +244,27 @@ export async function getAllRawMessages(
     return localStore.slice(offset, offset + limit);
   }
 
+  if (!isNeonConfigured()) {
+    console.log('[RawMessage] Neon not configured');
+    return [];
+  }
+
   try {
     const sql = getSql();
-    const rows = await sql`
-      SELECT * FROM raw_messages
-      ORDER BY timestamp DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `;
+    if (!sql) return [];
+
+    const rows = await withTimeout(
+      sql`
+        SELECT * FROM raw_messages
+        ORDER BY timestamp DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `,
+      10000 // 10 second timeout for larger queries
+    );
 
     return rows as RawMessage[];
   } catch (error) {
-    console.error('[RawMessage] Error querying all raw messages:', error);
+    console.error('[RawMessage] Error querying all raw messages:', error instanceof Error ? error.message : error);
     return [];
   }
 }
