@@ -120,3 +120,11 @@ export function hasRAGKeywords(message: string): boolean {
   const lowerMsg = message.toLowerCase();
   return config.ragKeywords.some(keyword => lowerMsg.includes(keyword.toLowerCase()));
 }
+
+/**
+ * Get matched RAG keywords from a message
+ */
+export function getRAGKeywords(message: string): string[] {
+  const lowerMsg = message.toLowerCase();
+  return config.ragKeywords.filter(keyword => lowerMsg.includes(keyword.toLowerCase()));
+}

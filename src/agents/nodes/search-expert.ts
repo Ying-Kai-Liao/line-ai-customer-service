@@ -2,6 +2,7 @@ import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import type { GraphStateType } from '../state';
 import { searchExperts } from '../../tools/expert-api';
 import { createExpertCarousel } from '../../tools/line-flex';
+import { trackExpertInteraction } from '../../services/analytics.service';
 
 /**
  * Search expert agent - finds and recommends experts based on user query
@@ -14,6 +15,14 @@ export async function searchExpertAgentNode(
 
   // Search for experts based on the user's message
   const recommendation = await searchExperts(state.userMessage);
+
+  // Track expert search (non-blocking)
+  trackExpertInteraction({
+    user_id: state.userId,
+    action: 'search',
+    search_query: state.userMessage,
+    results_count: recommendation.results.length,
+  }).catch(() => {});
 
   if (recommendation.results.length > 0) {
     // Create the expert carousel flex message
