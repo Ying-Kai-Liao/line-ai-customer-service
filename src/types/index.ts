@@ -207,3 +207,41 @@ export interface Prompt {
   updated_at?: string;
   created_at?: string;
 }
+
+// ============================================
+// Handoff types
+// ============================================
+
+// Handoff status values
+export type HandoffStatus = 'ai' | 'pending_human' | 'human_active';
+
+// Handoff event types
+export type HandoffEventType =
+  | 'user_requested'
+  | 'admin_started'
+  | 'admin_resumed'
+  | 'timeout_resumed'
+  | 'user_resumed';
+
+// Handoff event for audit trail
+export interface HandoffEvent {
+  id?: number;
+  conversation_id?: number;
+  user_id: string;
+  event_type: HandoffEventType;
+  admin_id?: string;
+  notes?: string;
+  created_at?: string;
+}
+
+// Active handoff details
+export interface ActiveHandoff {
+  user_id: string;
+  conversation_id?: number;
+  handoff_status: HandoffStatus;
+  handoff_requested_at?: string;
+  handoff_admin_id?: string;
+  handoff_timeout_at?: string;
+  last_message?: string;
+  message_count?: number;
+}

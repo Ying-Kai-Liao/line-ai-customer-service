@@ -8,6 +8,7 @@ import {
   notificationAgentNode,
   knowledgeAgentNode,
   emotionalSupportAgentNode,
+  handoffAgentNode,
 } from './nodes';
 import {
   getOrCreateConversation,
@@ -27,6 +28,7 @@ function buildGraph() {
     .addNode('notification', notificationAgentNode)
     .addNode('knowledge', knowledgeAgentNode)
     .addNode('emotional_support', emotionalSupportAgentNode)
+    .addNode('handoff', handoffAgentNode)
     // Set entry point
     .addEdge('__start__', 'router')
     // Add conditional routing from router to agents
@@ -37,6 +39,7 @@ function buildGraph() {
       notification: 'notification',
       knowledge: 'knowledge',
       emotional_support: 'emotional_support',
+      handoff: 'handoff',
     })
     // All agents end after responding
     .addEdge('main', END)
@@ -44,7 +47,8 @@ function buildGraph() {
     .addEdge('search_expert', END)
     .addEdge('notification', END)
     .addEdge('knowledge', END)
-    .addEdge('emotional_support', END);
+    .addEdge('emotional_support', END)
+    .addEdge('handoff', END);
 
   return workflow.compile();
 }

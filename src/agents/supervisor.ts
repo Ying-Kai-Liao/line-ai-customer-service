@@ -8,6 +8,19 @@ import { trackAgentRouting } from '../services/analytics.service';
 import { getPrompt } from '../services/prompt.service';
 import { logLLMCall } from '../services/llm-observability.service';
 
+// Handoff keywords - user wants to talk to a human
+const HANDOFF_KEYWORDS = [
+  'talk to human', 'human agent', 'real person', 'speak to someone',
+  '客服', '真人', '人工', '轉接', '找人', '真人客服', '人工客服',
+  '轉接客服', '找客服', '轉人工',
+];
+
+// Resume keywords - user wants to return to AI
+export const RESUME_KEYWORDS = [
+  'back to ai', 'ai help', '回到ai', '機器人', '回到機器人',
+  '繼續ai', 'ai助理', '回到 ai', '回到 AI',
+];
+
 const ROUTER_PROMPT = `You are a customer service router for CircleWe (圈圈), a mental health platform.
 
 IMPORTANT: This bot does NOT provide emotional support. It helps users find professionals.
@@ -24,19 +37,21 @@ Available agents:
    - User venting or seeking emotional validation
    - NOT when they explicitly say "找心理師" or "想預約"
 4. "notification" - ONLY for crisis situations (自殺, 想死, 自我傷害, severe distress)
+5. "handoff" - When user explicitly requests human agent (handled by keyword detection, rarely needed from LLM)
 
 Routing rules:
 - Emotional expressions WITHOUT booking intent → "emotional_support"
 - Looking for therapist/booking → "search_expert"
 - Service/company questions → "main"
 - Crisis keywords → "notification"
+- Request for human agent → "handoff"
 
 IMPORTANT: Consider the conversation context!
 - If previous messages indicate user is in a booking/expert-finding flow, continue routing to "search_expert"
 - Short responses like "好", "可以", "都可以", topic names like "人際關係" are likely follow-ups to the previous flow
 - Only route to "main" if the user is clearly asking a new, unrelated question
 
-Respond with ONLY the agent name: "main", "search_expert", "emotional_support", or "notification"`;
+Respond with ONLY the agent name: "main", "search_expert", "emotional_support", "notification", or "handoff"`;
 
 function getLLM() {
   if (config.llmProvider === 'anthropic') {
@@ -88,6 +103,34 @@ export async function routerNode(
       isCrisis: false,
       routingReason,
       keywordsMatched: [`expertId:${state.expertId}`],
+    };
+  }
+
+  // Check for handoff keywords - user wants to talk to a human
+  const messageLower = state.userMessage.toLowerCase();
+  const handoffKeywordMatched = HANDOFF_KEYWORDS.find(kw =>
+    messageLower.includes(kw.toLowerCase())
+  );
+
+  if (handoffKeywordMatched) {
+    console.log(`Router: Handoff keyword detected "${handoffKeywordMatched}", routing to handoff agent`);
+    currentAgent = 'handoff';
+    routingReason = 'keyword';
+    keywordsMatched = [handoffKeywordMatched];
+
+    // Track routing decision (non-blocking)
+    trackAgentRouting({
+      user_message: state.userMessage,
+      routed_to: currentAgent,
+      routing_reason: routingReason,
+      keywords_matched: keywordsMatched,
+    }).catch(() => {});
+
+    return {
+      currentAgent,
+      isCrisis: false,
+      routingReason,
+      keywordsMatched,
     };
   }
 
@@ -209,6 +252,8 @@ export async function routerNode(
   } else if (content.includes('notification')) {
     currentAgent = 'notification';
     isCrisis = true;
+  } else if (content.includes('handoff')) {
+    currentAgent = 'handoff';
   }
 
   console.log(`Router decision: ${currentAgent} for message: "${state.userMessage.substring(0, 50)}..."`);

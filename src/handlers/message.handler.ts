@@ -17,6 +17,8 @@ import { processMessage } from '../agents/graph';
 import { createTextMessage } from '../tools/line-flex';
 import type { ChatMessage } from '../types';
 import type { Message } from '@line/bot-sdk';
+import { getHandoffStatus, resumeAI, requestHandoff, sendHandoffNotification } from '../services/handoff.service';
+import { RESUME_KEYWORDS } from '../agents/supervisor';
 
 const FALLBACK_MESSAGE =
   '抱歉，處理您的訊息時發生問題。請稍後再試。';
@@ -140,14 +142,44 @@ async function handlePostbackEvent(event: WebhookEvent): Promise<void> {
       return;
     }
 
-    // Handle other postback actions (e.g., actionId=21 for human support)
-    if (params.actionId === '21') {
+    // Handle handoff postback (from flex message or quick reply)
+    if (params.action === 'handoff' || params.actionId === '21') {
+      // Request handoff
+      const success = await requestHandoff(userId, `Postback: ${postbackData}`);
+
+      if (success) {
+        // Send notification to staff (non-blocking)
+        setImmediate(() => {
+          sendHandoffNotification(userId, `用戶透過按鈕請求真人客服 (source: ${params.source || 'quick_reply'})`).catch((error) => {
+            console.error('[Handler] Failed to send handoff notification:', error);
+          });
+        });
+
+        await replyMessage(
+          replyToken,
+          '好的，我已經收到您的請求！真人客服會儘快與您聯繫。\n\n在等待期間，AI 回覆已暫停。如果您想繼續使用 AI 助理，請輸入「回到AI」或「機器人」。',
+          userId
+        );
+      } else {
+        await replyMessage(
+          replyToken,
+          '好的，我會請真人客服來協助您！請稍候片刻。',
+          userId
+        );
+      }
+
+      console.log(`[Handler] User ${userId} requested human support via postback`);
+      return;
+    }
+
+    // Handle continue with AI postback (user declined handoff offer)
+    if (params.action === 'continue_ai') {
       await replyMessage(
         replyToken,
-        '好的，我會請真人客服來協助您！請稍候片刻。',
+        '沒問題！我會繼續為您服務。請問還有什麼我可以幫您的嗎？',
         userId
       );
-      console.log(`User ${userId} requested human support`);
+      console.log(`[Handler] User ${userId} chose to continue with AI`);
       return;
     }
 
@@ -189,6 +221,47 @@ async function handleMessageEvent(event: WebhookEvent): Promise<void> {
   await showLoadingIndicator(userId);
 
   try {
+    // Check handoff status before AI processing
+    const handoffStatus = await getHandoffStatus(userId);
+
+    if (handoffStatus !== 'ai') {
+      // Check if user wants to return to AI
+      const messageLower = textContent.toLowerCase();
+      const wantsResume = RESUME_KEYWORDS.some(kw =>
+        messageLower.includes(kw.toLowerCase())
+      );
+
+      if (wantsResume) {
+        // Resume AI for this user
+        await resumeAI(userId, null, 'user_resumed');
+        console.log(`[Handler] User ${userId} requested to return to AI`);
+
+        // Continue to normal AI processing below
+        await replyMessage(
+          replyToken,
+          '好的，我已經回來了！有什麼我可以幫您的嗎？',
+          userId
+        );
+
+        // Save the interaction to history
+        const userMessage = createChatMessage('user', textContent);
+        await addMessageToHistory(userId, userMessage);
+        const assistantMessage = createChatMessage('assistant', '好的，我已經回來了！有什麼我可以幫您的嗎？');
+        await addMessageToHistory(userId, assistantMessage);
+        return;
+      }
+
+      // User is in handoff mode - store message but don't process with AI
+      console.log(`[Handler] Skipping AI - user ${userId} in handoff mode: ${handoffStatus}`);
+
+      // Save user message to history (for admin to see)
+      const userMessage = createChatMessage('user', textContent);
+      await addMessageToHistory(userId, userMessage);
+
+      // Don't send a reply - human agent will respond
+      return;
+    }
+
     // Get chat history for context
     const chatHistory = await getChatHistory(userId);
 

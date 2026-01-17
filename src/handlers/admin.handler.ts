@@ -10,6 +10,15 @@ import {
   clearPromptCache,
   getDefaultPrompt,
 } from '../services/prompt.service';
+import {
+  getActiveHandoffs,
+  getHandoffDetails,
+  getHandoffEvents,
+  startHandoff,
+  resumeAI,
+  sendAdminReply,
+  checkTimeouts,
+} from '../services/handoff.service';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -287,6 +296,163 @@ export async function admin(event: APIGatewayProxyEvent): Promise<APIGatewayProx
         statusCode: 200,
         headers: CORS_HEADERS,
         body: JSON.stringify({ success: true, message: 'Prompt cache cleared' }),
+      };
+    }
+
+    // ============================================
+    // Handoff Management Endpoints
+    // ============================================
+
+    // GET /admin/handoffs - List all active handoffs
+    if (path === '/handoffs' && event.httpMethod === 'GET') {
+      // Also check for timed-out handoffs
+      await checkTimeouts();
+
+      const handoffs = await getActiveHandoffs();
+
+      return {
+        statusCode: 200,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({
+          data: handoffs,
+          count: handoffs.length,
+        }),
+      };
+    }
+
+    // GET /admin/handoffs/:userId - Get handoff details for a user
+    if (path.match(/^\/handoffs\/[^/]+$/) && !path.includes('/start') && !path.includes('/resume') && !path.includes('/reply') && event.httpMethod === 'GET') {
+      const userId = path.split('/').pop() || '';
+      const handoff = await getHandoffDetails(userId);
+
+      if (!handoff) {
+        return {
+          statusCode: 404,
+          headers: CORS_HEADERS,
+          body: JSON.stringify({ error: 'No active handoff for this user' }),
+        };
+      }
+
+      // Get recent events for this user
+      const events = await getHandoffEvents(userId, 20);
+
+      return {
+        statusCode: 200,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({
+          ...handoff,
+          events,
+        }),
+      };
+    }
+
+    // POST /admin/handoffs/:userId/start - Admin takes over conversation
+    if (path.match(/^\/handoffs\/[^/]+\/start$/) && event.httpMethod === 'POST') {
+      const userId = path.split('/')[2];
+
+      let body;
+      try {
+        body = JSON.parse(event.body || '{}');
+      } catch {
+        body = {};
+      }
+
+      const adminId = body.adminId || 'admin';
+      const success = await startHandoff(userId, adminId);
+
+      if (!success) {
+        return {
+          statusCode: 500,
+          headers: CORS_HEADERS,
+          body: JSON.stringify({ error: 'Failed to start handoff' }),
+        };
+      }
+
+      return {
+        statusCode: 200,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({ success: true, message: `Admin ${adminId} is now handling user ${userId}` }),
+      };
+    }
+
+    // POST /admin/handoffs/:userId/resume - Resume AI responses
+    if (path.match(/^\/handoffs\/[^/]+\/resume$/) && event.httpMethod === 'POST') {
+      const userId = path.split('/')[2];
+
+      let body;
+      try {
+        body = JSON.parse(event.body || '{}');
+      } catch {
+        body = {};
+      }
+
+      const adminId = body.adminId || 'admin';
+      const success = await resumeAI(userId, adminId, 'admin_resumed');
+
+      if (!success) {
+        return {
+          statusCode: 500,
+          headers: CORS_HEADERS,
+          body: JSON.stringify({ error: 'Failed to resume AI' }),
+        };
+      }
+
+      return {
+        statusCode: 200,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({ success: true, message: `AI responses resumed for user ${userId}` }),
+      };
+    }
+
+    // POST /admin/handoffs/:userId/reply - Send message to user as admin
+    if (path.match(/^\/handoffs\/[^/]+\/reply$/) && event.httpMethod === 'POST') {
+      const userId = path.split('/')[2];
+
+      let body;
+      try {
+        body = JSON.parse(event.body || '{}');
+      } catch {
+        return {
+          statusCode: 400,
+          headers: CORS_HEADERS,
+          body: JSON.stringify({ error: 'Invalid JSON body' }),
+        };
+      }
+
+      if (!body.message || typeof body.message !== 'string') {
+        return {
+          statusCode: 400,
+          headers: CORS_HEADERS,
+          body: JSON.stringify({ error: 'Missing or invalid message' }),
+        };
+      }
+
+      const adminId = body.adminId || 'admin';
+      const success = await sendAdminReply(userId, adminId, body.message);
+
+      if (!success) {
+        return {
+          statusCode: 500,
+          headers: CORS_HEADERS,
+          body: JSON.stringify({ error: 'Failed to send message' }),
+        };
+      }
+
+      return {
+        statusCode: 200,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({ success: true, message: 'Message sent to user' }),
+      };
+    }
+
+    // POST /admin/handoffs/check-timeouts - Manually check and process timeouts
+    if (path === '/handoffs/check-timeouts' && event.httpMethod === 'POST') {
+      const count = await checkTimeouts();
+
+      return {
+        statusCode: 200,
+        headers: CORS_HEADERS,
+        body: JSON.stringify({ success: true, resumed: count }),
       };
     }
 

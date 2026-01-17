@@ -5,6 +5,18 @@ import { config } from '../../config';
 import type { GraphStateType } from '../state';
 import { getPrompt } from '../../services/prompt.service';
 import { logLLMCall } from '../../services/llm-observability.service';
+import { createHandoffPromptFlexMessage } from '../../tools/line-flex';
+
+// Marker that the LLM can include when it feels it cannot adequately help
+const NEEDS_HUMAN_MARKER = '[NEEDS_HUMAN]';
+
+// Phrases that indicate AI uncertainty or inability to help
+const UNCERTAINTY_PHRASES = [
+  '無法幫助', '無法協助', '建議聯繫客服', '建議您聯繫', '需要人工協助',
+  '超出我的能力', '無法處理', '這個問題我無法', '抱歉我無法',
+  "i can't help", "i cannot help", "i'm unable to", "beyond my capabilities",
+  "contact customer service", "contact support", "speak to a human",
+];
 
 const DEFAULT_MAIN_AGENT_PROMPT = `You are a helpful, friendly, and professional customer service assistant for CircleWe (圈圈), a mental health and wellness platform.
 
@@ -18,6 +30,8 @@ Your role is to:
 If someone asks about booking an appointment or finding an expert, let them know you can help with that.
 
 Always maintain a warm, professional tone. If a user seems distressed, acknowledge their feelings with empathy.
+
+IMPORTANT: If you feel you cannot adequately help the user with their request (e.g., account issues, complaints, refunds, technical problems, or complex situations that need human judgment), include the marker [NEEDS_HUMAN] at the END of your response. This will offer the user the option to speak with a human agent.
 
 Respond in the same language the user uses (Traditional Chinese or English).`;
 
@@ -102,11 +116,38 @@ export async function mainAgentNode(
     }).catch(() => {});
   });
 
+  // Check if AI indicates it needs human help
+  const contentLower = content.toLowerCase();
+  const hasMarker = content.includes(NEEDS_HUMAN_MARKER);
+  const hasUncertaintyPhrase = UNCERTAINTY_PHRASES.some(phrase =>
+    contentLower.includes(phrase.toLowerCase())
+  );
+
+  // Remove the marker from the response if present
+  const cleanedContent = content.replace(NEEDS_HUMAN_MARKER, '').trim();
+
+  // If AI indicates it can't help, add the handoff flex message
+  if (hasMarker || hasUncertaintyPhrase) {
+    console.log(`[MainAgent] AI indicated uncertainty, adding handoff prompt for user ${state.userId}`);
+    const handoffFlex = createHandoffPromptFlexMessage(
+      '看起來這個問題可能需要專人為您處理。需要我幫您轉接真人客服嗎？'
+    );
+
+    return {
+      response: cleanedContent,
+      flexMessage: handoffFlex,
+      messages: [
+        new HumanMessage(state.userMessage),
+        new AIMessage(cleanedContent),
+      ],
+    };
+  }
+
   return {
-    response: content,
+    response: cleanedContent,
     messages: [
       new HumanMessage(state.userMessage),
-      new AIMessage(content),
+      new AIMessage(cleanedContent),
     ],
   };
 }

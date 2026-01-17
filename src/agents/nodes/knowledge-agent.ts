@@ -7,6 +7,7 @@ import { queryVectorStore, determineIndex, type RAGResult } from '../../services
 import { trackRagQuery } from '../../services/analytics.service';
 import { getPrompt } from '../../services/prompt.service';
 import { logLLMCall } from '../../services/llm-observability.service';
+import { createHandoffPromptFlexMessage } from '../../tools/line-flex';
 
 /**
  * Get LLM instance based on config
@@ -201,8 +202,15 @@ export async function knowledgeAgentNode(
       }).catch(() => {});
     });
 
+    // No RAG results found - offer handoff option
+    console.log(`[Knowledge Agent] No results found, offering handoff option for user ${state.userId}`);
+    const handoffFlex = createHandoffPromptFlexMessage(
+      '我目前找不到相關資料，如果您需要更詳細的協助，可以轉接真人客服。'
+    );
+
     return {
       response: content,
+      flexMessage: handoffFlex,
       toolResults: { ragResults: [], ragIndex: indexName },
       messages: [new HumanMessage(state.userMessage), new AIMessage(content)],
     };
