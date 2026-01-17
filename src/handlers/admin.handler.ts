@@ -110,8 +110,11 @@ export async function admin(event: APIGatewayProxyEvent): Promise<APIGatewayProx
         // Count event types
         eventTypes[msg.event_type] = (eventTypes[msg.event_type] || 0) + 1;
 
-        // Count by day
-        const date = new Date(msg.timestamp).toISOString().split('T')[0];
+        // Count by day - handle invalid timestamps gracefully
+        const parsedDate = new Date(msg.timestamp);
+        const date = !isNaN(parsedDate.getTime())
+          ? parsedDate.toISOString().split('T')[0]
+          : 'unknown';
         messagesByDay[date] = (messagesByDay[date] || 0) + 1;
       }
 
