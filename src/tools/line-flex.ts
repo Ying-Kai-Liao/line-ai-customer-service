@@ -328,3 +328,88 @@ export function createTextMessage(text: string): object {
     quickReply: DEFAULT_QUICK_REPLY,
   };
 }
+
+/**
+ * Create a handoff prompt flex message
+ * Shows when AI feels it cannot help the user adequately
+ */
+export function createHandoffPromptFlexMessage(reason?: string): FlexMessage {
+  const bubble: FlexBubble = {
+    type: 'bubble',
+    body: {
+      type: 'box',
+      layout: 'vertical',
+      paddingAll: '20px',
+      spacing: 'lg',
+      contents: [
+        {
+          type: 'box',
+          layout: 'horizontal',
+          contents: [
+            {
+              type: 'text',
+              text: '🙋',
+              size: 'xxl',
+            },
+            {
+              type: 'text',
+              text: '需要真人協助嗎？',
+              size: 'lg',
+              weight: 'bold',
+              flex: 1,
+              gravity: 'center',
+            },
+          ],
+          spacing: 'md',
+        },
+        {
+          type: 'text',
+          text: reason || '看起來這個問題可能需要專人為您處理。我們的客服團隊可以提供更好的協助！',
+          wrap: true,
+          size: 'sm',
+          color: '#666666',
+        },
+        {
+          type: 'separator',
+          margin: 'lg',
+        },
+        {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          margin: 'lg',
+          contents: [
+            {
+              type: 'button',
+              style: 'primary',
+              color: '#5BC3E1',
+              action: {
+                type: 'postback',
+                label: '是的，請找真人客服',
+                data: 'action=handoff&source=ai_suggest',
+                displayText: '請幫我轉接真人客服',
+              },
+            },
+            {
+              type: 'button',
+              style: 'secondary',
+              action: {
+                type: 'postback',
+                label: '不用了，繼續AI對話',
+                data: 'action=continue_ai',
+                displayText: '我想繼續與AI對話',
+              },
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  return {
+    type: 'flex',
+    altText: '需要真人協助嗎？',
+    contents: bubble,
+    sender: AI_SENDER,
+  };
+}
