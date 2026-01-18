@@ -58,6 +58,14 @@ functions:
           cors: true
       - http:
           path: admin/{proxy+}
+          method: post
+          cors: true
+      - http:
+          path: admin/{proxy+}
+          method: put
+          cors: true
+      - http:
+          path: admin/{proxy+}
           method: options
           cors: true
 
