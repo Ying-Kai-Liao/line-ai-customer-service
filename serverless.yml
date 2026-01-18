@@ -24,6 +24,7 @@ provider:
     MAX_HISTORY_MESSAGES: ${env:MAX_HISTORY_MESSAGES, '10'}
     NEON_DATABASE_URL: ${env:NEON_DATABASE_URL, ''}
     ADMIN_API_KEY: ${env:ADMIN_API_KEY, ''}
+    NOTIFICATION_STAFF_LINE_IDS: ${env:NOTIFICATION_STAFF_LINE_IDS, ''}
   iam:
     role:
       statements:
