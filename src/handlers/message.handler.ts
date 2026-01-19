@@ -24,6 +24,8 @@ const FALLBACK_MESSAGE =
   '抱歉，處理您的訊息時發生問題。請稍後再試。';
 const NON_TEXT_MESSAGE =
   '目前我只能處理文字訊息喔！請傳送文字訊息給我。';
+const WELCOME_MESSAGE =
+  'Hi 我是圈圈AI小幫手，你可以問我以下問題～\n1. 想知道怎麼預約專家\n2. 心理學的任何知識\n3. 圈圈的服務內容';
 
 // Deduplication: track processed webhook event IDs
 // Events are kept for 5 minutes to handle LINE retries
@@ -288,16 +290,34 @@ async function handleMessageEvent(event: WebhookEvent): Promise<void> {
 
     // Send reply - flex message if available, otherwise text
     // Pass userId for push fallback if reply token expires
+    // Include welcome message if this is the first message in the session
+    const isFirstMessage = chatHistory.length === 0;
+
     if (result.flexMessage) {
       console.log(`[Handler] Sending flex message with text: "${result.response.substring(0, 50)}..."`);
-      const messages: Message[] = [
-        createTextMessage(result.response) as Message,
-        result.flexMessage,
-      ];
+      const messages: Message[] = isFirstMessage
+        ? [
+            createTextMessage(WELCOME_MESSAGE) as Message,
+            createTextMessage(result.response) as Message,
+            result.flexMessage,
+          ]
+        : [
+            createTextMessage(result.response) as Message,
+            result.flexMessage,
+          ];
       await replyMessages(replyToken, messages, userId);
     } else {
-      console.log(`[Handler] Sending text-only response: "${result.response.substring(0, 50)}..."`);
-      await replyMessage(replyToken, result.response, userId);
+      if (isFirstMessage) {
+        console.log(`[Handler] First message - sending welcome + response`);
+        const messages: Message[] = [
+          createTextMessage(WELCOME_MESSAGE) as Message,
+          createTextMessage(result.response) as Message,
+        ];
+        await replyMessages(replyToken, messages, userId);
+      } else {
+        console.log(`[Handler] Sending text-only response: "${result.response.substring(0, 50)}..."`);
+        await replyMessage(replyToken, result.response, userId);
+      }
     }
 
     console.log(`[Handler] Processed message for user ${userId}`);
